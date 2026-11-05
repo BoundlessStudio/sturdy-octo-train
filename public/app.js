@@ -373,7 +373,7 @@ function renderPreview() {
   frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
   byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
-    + (job.live ? ' · Sandbox expires one hour after creation' : '');
+    + (job.live ? ' · Preview expires one hour after sandbox creation' : '');
   const actions = byId('preview-actions');
   actions.replaceChildren(button('New idea', () => reset(false)));
   if (job.live) {

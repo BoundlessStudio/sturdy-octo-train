@@ -1,7 +1,6 @@
 import assets from 'scrollworks:assets';
 import { ASSET_HEADERS, appDocument } from '../lib/assets.js';
 import { handleBuilder } from '../lib/builder.js';
-import { handleSandboxMaintenance, handleSandboxMcp } from '../lib/sandbox-expiry.js';
 
 async function siteOwner(request) {
   const id = request.headers.get('oai-authenticated-user-id');
@@ -13,8 +12,6 @@ async function siteOwner(request) {
 export default {
   async fetch(request, env, context) {
     const { pathname } = new URL(request.url);
-    if (pathname === '/mcp') return handleSandboxMcp(request, env, await siteOwner(request));
-    if (pathname === '/api/maintenance/sandboxes') return handleSandboxMaintenance(request, env);
     if (pathname.startsWith('/api/')) {
       return handleBuilder(request, env, await siteOwner(request), context);
     }

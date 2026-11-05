@@ -19,10 +19,10 @@ Copy `.env.example` to `.env`, set `AGENT37_API_KEY` to a key from a workspace w
 
 - Submitting an idea provisions a Hermes instance and starts planning. The review step sends the three feature groups back to the same Hermes session to generate the site.
 - Scrollworks checks that the instance serves its index page over HTTPS. The private preview reads the generated files through the builder and renders them in a sandboxed iframe.
-- Scrollworks sandboxes expire one hour after Agent37 creates them. The cleanup job deletes expired instances, including sleeping ones. **Delete sandbox** ends the build and its billing sooner.
+- Preview access expires one hour after Agent37 creates the sandbox. Revisiting an expired build triggers deletion. **Delete sandbox** ends the build and its billing sooner.
 
 The Express server binds to loopback by default. For a separate HTTPS deployment, set `HOST`, `BUILDER_ORIGIN`, and `BUILDER_ACCESS_TOKEN`. The HTTP Basic username is `scrollworks` and the password is the access token. The private Sites deployment uses Sites authentication.
 
 `npm run build` packages the same application and API as a Sites Worker. The backend adapts the Express and Hermes flow from the [Agent37 site-builder starter](https://github.com/agent37-platform/examples/tree/eb480068188cda2f912fbbe2e9083e0838ffa81e/site-builder).
 
-For hosted cleanup, link an hourly ChatGPT Sites schedule to the private `cleanup_expired_sandboxes` tool. The tool deletes the signed-in owner’s expired builds on the next run. The Agent37 key stays in Sites. The Express server runs cleanup itself while it is online.
+The Express server also clears expired sandboxes while it is running.
