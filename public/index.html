@@ -4,213 +4,131 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0c0d16">
-  <meta name="description" content="Describe a website, watch its 3D blueprint take shape, and choose what goes into the first build.">
+  <meta name="description" content="Write an idea and scroll through every step of its build.">
   <title>Scrollworks — Build while you scroll</title>
   <link rel="icon" href="/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=inline">
-  <script id="app-entry" type="module" src="/app.js?v=inline"></script>
+  <link rel="stylesheet" href="/style.css?v=reader">
+  <script id="app-entry" type="module" src="/app.js?v=reader"></script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to builder</a>
-  <header class="masthead">
-    <div class="shell nav">
-      <a class="brand" href="#brief" aria-label="Scrollworks, back to brief">
-        <img src="/mark.svg" width="30" height="30" alt="">
-        Scrollworks<span>.</span>
-      </a>
-      <div class="nav-actions">
-        <button class="text-button" id="how-link" type="button">How it works <span aria-hidden="true">↗</span></button>
-        <span class="mode" id="mode"><i></i><span>DEMO MODE</span></span>
+  <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
+    <div class="reader-track">
+      <div class="reader-screen">
+        <header class="masthead">
+          <div class="shell masthead-inner">
+            <div class="brand"><img src="/mark.svg" width="23" height="23" alt="">Scrollworks</div>
+            <span class="mode" id="mode"><i aria-hidden="true"></i><span>Connecting</span></span>
+          </div>
+        </header>
+        <div class="stage-viewport" id="stage-viewport">
+          <section class="pane idea-pane" id="idea-pane" aria-labelledby="idea-title">
+            <div class="shell idea-content">
+              <h1 id="idea-title"><label for="idea">What do you want to build?</label></h1>
+              <div class="idea-field">
+                <textarea id="idea" maxlength="500" minlength="8" rows="3" placeholder="Describe your site…" aria-describedby="idea-feedback"></textarea>
+                <div class="idea-meta">
+                  <p id="idea-feedback" role="status"></p>
+                  <span class="mono" id="idea-count">0 / 500</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="pane" id="feed-pane" aria-labelledby="feed-title" hidden>
+            <div class="shell split">
+              <div class="step-copy">
+                <p class="eyebrow"><span class="signal"></span> <span id="feed-label">SANDBOX UPDATE</span></p>
+                <h2 id="feed-title"></h2>
+                <p class="step-caption" id="feed-detail"></p>
+              </div>
+              <aside class="instrument" aria-labelledby="guide-title">
+                <div class="instrument-bar"><span><i class="signal"></i> FIELD NOTES</span><span id="feed-index"></span></div>
+                <div class="field-note">
+                  <h3 id="guide-title"></h3>
+                  <p id="guide-copy"></p>
+                  <div class="utility-actions" id="feed-actions" hidden></div>
+                  <p class="feedback" id="feed-feedback" role="status" hidden></p>
+                </div>
+              </aside>
+            </div>
+          </section>
+
+          <section class="pane" id="blueprint-pane" aria-labelledby="blueprint-title" hidden>
+            <div class="shell split blueprint-split">
+              <div class="step-copy">
+                <p class="eyebrow"><span class="signal"></span> <span id="blueprint-index"></span></p>
+                <h2 id="blueprint-title"></h2>
+                <p class="step-caption" id="blueprint-copy"></p>
+                <div class="surfaces" id="surfaces" aria-label="Planned screens"></div>
+              </div>
+              <div class="blueprint-display">
+                <div class="model-panel" id="blueprint-model" data-fill="0">
+                  <div class="instrument-bar"><span><i class="signal"></i> WIREFRAME</span><span id="model-name"></span></div>
+                  <div class="viewport" aria-hidden="true"><div class="model-fallback"></div></div>
+                  <div class="model-bottom"><span>Frame</span><span>Content</span><span>Detail</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="pane" id="feature-pane" aria-labelledby="feature-title" hidden>
+            <div class="shell split">
+              <div class="step-copy">
+                <p class="eyebrow"><span class="signal"></span> FEATURE REVIEW</p>
+                <h2 id="feature-title">Choose what goes in.</h2>
+                <p class="step-caption" id="feature-help">Pick Keep, Later, or Never. The next scroll saves your choice and shows one more card.</p>
+              </div>
+              <div class="instrument">
+                <div class="instrument-bar"><span><i class="signal"></i> FEATURE CARD</span><span id="feature-index"></span></div>
+                <div id="feature-card" class="feature-card"></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="pane" id="recap-pane" aria-labelledby="recap-title" hidden>
+            <div class="shell recap">
+              <p class="eyebrow"><span class="signal"></span> SCOPE CHECKPOINT</p>
+              <h2 id="recap-title">Review your first release.</h2>
+              <p class="step-caption" id="recap-copy"></p>
+              <div class="scope-list" id="scope-list"></div>
+            </div>
+          </section>
+
+          <section class="pane preview-pane" id="preview-pane" aria-labelledby="preview-title" hidden>
+            <div class="shell preview-content">
+              <div>
+                <p class="eyebrow"><span class="signal"></span> FINAL STEP</p>
+                <h2 id="preview-title">Your site is here.</h2>
+                <p class="step-caption" id="preview-summary"></p>
+              </div>
+              <div class="instrument preview-window">
+                <div class="instrument-bar"><span><i class="signal"></i> <span id="preview-name">PRIVATE PREVIEW</span></span><span>INLINE</span></div>
+                <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+              </div>
+              <p id="preview-feedback" class="feedback" role="status" hidden></p>
+              <div class="utility-actions" id="preview-actions"></div>
+            </div>
+          </section>
+        </div>
+
+        <footer class="reader-footer">
+          <div class="shell reader-footer-inner">
+            <div class="step-marker">
+              <p class="mono" id="step-marker">01 / Idea</p>
+              <p class="back-hint" id="back-hint" hidden>↑ Scroll up to review</p>
+            </div>
+            <div class="scroll-prompt" id="scroll-prompt">
+              <span class="scroll-arrow" id="scroll-arrow" aria-hidden="true">↓</span>
+              <div>
+                <p id="scroll-instruction" role="status">Type an idea, then scroll down</p>
+                <p class="scroll-help" id="scroll-help">Wheel, swipe up, or Page Down</p>
+              </div>
+            </div>
+          </div>
+        </footer>
+        <p class="sr-only" id="step-announcement" role="status"></p>
       </div>
     </div>
-  </header>
-
-  <main id="main">
-    <section id="brief" class="shell hero" aria-labelledby="hero-title">
-      <div class="hero-copy">
-        <div class="eyebrow"><span class="signal"></span> THE INTERACTIVE SITE BUILDER</div>
-        <h1 id="hero-title">Build while<br> you <em>scroll.</em></h1>
-        <p class="hero-lede">Type an idea, then scroll to assemble the blueprint, shape the scope, and follow your build to a working preview.</p>
-
-        <form id="idea-form" class="idea-form">
-          <label for="idea"><span aria-hidden="true">✦</span> YOUR IDEA</label>
-          <textarea id="idea" name="idea" rows="2" maxlength="500" minlength="8" required placeholder="A booking site for my ceramics studio…" aria-describedby="idea-hint"></textarea>
-          <div class="form-bar">
-            <span class="counter" id="idea-count">0 / 500</span>
-            <button class="button primary" type="submit" id="start">Start building <span aria-hidden="true">↗</span></button>
-          </div>
-        </form>
-        <p class="sr-only" id="idea-hint">Describe your website in 8 to 500 characters.</p>
-        <div class="examples" aria-label="Try an example idea">
-          <span>TRY</span>
-          <div id="examples"></div>
-        </div>
-      </div>
-
-      <figure class="hero-figure">
-        <div class="model-panel hero-model" id="hero-model" data-layout="landing" data-fill="2">
-          <div class="model-top">
-            <span><i></i> THE BUILD SURFACE</span>
-            <span>FIG. 01</span>
-          </div>
-          <div class="viewport" aria-hidden="true">
-            <img class="model-fallback" src="/blueprint.svg" alt="">
-          </div>
-          <span class="model-tag model-tag-left" aria-hidden="true">01 / FRAME</span>
-          <span class="model-tag model-tag-right" aria-hidden="true">02 / CONTENT</span>
-          <div class="model-bottom"><span>UI BLUEPRINT</span><span>X <b>+</b> Y <b>+</b> Z</span></div>
-        </div>
-        <figcaption><span class="caption-rule"></span> FROM WIREFRAME TO WORKING SITE</figcaption>
-      </figure>
-    </section>
-
-    <nav class="rail-wrap" aria-label="Build chapters">
-      <ol class="shell chapter-rail">
-        <li><button type="button" data-jump="brief" aria-current="step"><span>01</span> Brief</button></li>
-        <li><button type="button" data-jump="blueprint" disabled><span>02</span> Blueprint</button></li>
-        <li><button type="button" data-jump="scope" disabled><span>03</span> Features</button></li>
-        <li><button type="button" data-jump="build" disabled><span>04</span> Build</button></li>
-      </ol>
-    </nav>
-
-    <section class="story-track chapter" id="blueprint" aria-labelledby="blueprint-title" hidden>
-      <div class="shell story-stage blueprint">
-        <div class="blueprint-copy">
-          <div class="eyebrow"><span class="chapter-number">02</span> BLUEPRINT</div>
-          <h2 id="blueprint-title" tabindex="-1">See it take shape.</h2>
-          <div class="story-copy" id="blueprint-beat">
-            <p class="mono story-label" id="blueprint-index"></p>
-            <h3 id="blueprint-beat-title"></h3>
-            <p id="blueprint-beat-copy"></p>
-          </div>
-          <div class="surface-list" id="surfaces" aria-label="Planned screens"></div>
-          <p class="story-meta" id="blueprint-note" role="status"></p>
-          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="blueprint-cue">Scroll to assemble</span></p>
-        </div>
-        <div class="blueprint-display">
-          <div class="model-panel blueprint-model" id="blueprint-model" data-layout="landing" data-fill="0">
-            <div class="model-top"><span><i></i> WIREFRAME VIEW</span><span id="blueprint-view-step">01 / 03</span></div>
-            <div class="viewport" aria-hidden="true"><img class="model-fallback" src="/blueprint.svg" alt=""></div>
-            <div class="model-bottom"><span id="model-name">APPLICATION SHELL</span><span>ORTHOGRAPHIC</span></div>
-          </div>
-          <div class="fill-steps" id="fill-steps" aria-label="Blueprint layers">
-            <span data-layer="0" class="is-active"><i></i> Frame</span>
-            <span data-layer="1"><i></i> Content</span>
-            <span data-layer="2"><i></i> Detail</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="story-track chapter section-tint" id="scope" aria-labelledby="scope-title" hidden>
-      <div class="shell story-stage scope-story">
-        <div class="story-intro">
-          <div class="eyebrow"><span class="chapter-number">03</span> FEATURE REVIEW</div>
-          <h2 id="scope-title" tabindex="-1">Shape the first release.</h2>
-          <p>Scroll through the ideas one at a time. Keep what belongs in this build, set it aside for Later, or choose Never to leave it out.</p>
-          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="scope-cue">Scroll to review</span></p>
-        </div>
-        <div class="scope-console">
-          <div class="story-top">
-            <span class="mono"><i class="signal"></i> PROPOSED SCOPE</span>
-            <span class="mono" id="feature-index">WAITING</span>
-          </div>
-          <div class="scope-wait" id="scope-wait" hidden><i class="signal"></i><span id="scope-wait-text" role="status">Preparing your feature cards…</span></div>
-          <div class="feature-deck" id="feature-deck">
-            <div class="feature-grid" id="feature-grid" aria-label="Feature cards"></div>
-            <article class="scope-review" id="scope-review" hidden>
-              <span class="mono story-label">SCOPE CHECKPOINT</span>
-              <h3 id="scope-review-title">Ready to build?</h3>
-              <p id="scope-review-copy">Scroll once more to start the build. Any undecided cards go to Later.</p>
-            </article>
-          </div>
-          <div class="scope-footer" id="scope-footer" hidden>
-            <ol class="feature-ledger" id="feature-ledger" aria-label="Feature list"></ol>
-            <div class="scope-bottom">
-              <div class="scope-counts" id="scope-counts" aria-live="polite"></div>
-              <button class="text-button" type="button" id="restart">New brief</button>
-            </div>
-            <p id="scope-feedback" role="status" hidden></p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="story-track chapter build" id="build" aria-labelledby="build-title" hidden>
-      <div class="shell story-stage build-story">
-        <div class="story-intro">
-          <div class="eyebrow"><span class="chapter-number">04</span> BUILD DESK</div>
-          <h2 id="build-title" tabindex="-1">Follow the build.</h2>
-          <p>Each update adds one short step. Scroll to read it while the sandbox keeps working.</p>
-          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="build-cue" role="status">Waiting for the first update</span></p>
-        </div>
-        <div class="workbench">
-          <div class="story-top">
-            <span class="mono"><i class="signal"></i> SANDBOX FEED</span>
-            <span id="build-state" class="state-chip">BUILDING</span>
-          </div>
-          <div id="activity" class="activity">
-            <div id="build-beat" class="story-copy">
-              <p class="mono story-label" id="build-index"></p>
-              <h3 id="build-message"></h3>
-            </div>
-            <div class="feed-guide">
-              <span class="mono story-label">INSIDE THE BUILD</span>
-              <p id="build-guide-copy"></p>
-            </div>
-          </div>
-          <ol class="feed-steps" id="feed-steps" aria-label="Build updates"></ol>
-          <div id="build-recovery" class="result" hidden>
-            <p id="recovery-feedback" role="status" hidden></p>
-            <div class="result-actions" id="recovery-actions"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="chapter preview-chapter" id="preview" aria-labelledby="preview-title" hidden>
-      <div class="shell">
-        <div class="chapter-heading">
-          <div>
-            <div class="eyebrow"><span class="signal"></span> FINAL FRAME</div>
-            <h2 id="preview-title" tabindex="-1">Your site is here.</h2>
-          </div>
-          <p id="preview-summary"></p>
-        </div>
-        <div class="preview-window">
-          <div class="story-top"><span class="mono"><i class="signal"></i> <span id="preview-name">PRIVATE PREVIEW</span></span><span class="mono">LIVE FRAME</span></div>
-          <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>
-        </div>
-        <p id="build-feedback" role="status" class="inline-feedback" hidden></p>
-        <div class="result-actions" id="preview-actions"></div>
-      </div>
-    </section>
-
-    <section class="process section-tint" id="how" aria-labelledby="how-title">
-      <div class="shell process-inner">
-        <div class="chapter-heading">
-          <div>
-            <div class="eyebrow"><span class="signal"></span> THE FIELD GUIDE</div>
-            <h2 id="how-title" tabindex="-1">How it works.</h2>
-          </div>
-          <p>One short path from a rough idea to a preview. You set the direction and decide what gets built.</p>
-        </div>
-        <div id="process-steps" class="process-steps"></div>
-      </div>
-    </section>
   </main>
-
-  <footer class="site-footer">
-    <div class="shell footer-inner">
-      <span><img src="/mark.svg" width="20" height="20" alt=""> Scrollworks</span>
-      <span class="mono" id="footer-mode">INTERACTIVE DEMO</span>
-      <a href="#brief">Back to brief <span aria-hidden="true">↑</span></a>
-    </div>
-  </footer>
-
-  <dialog id="how-dialog" aria-labelledby="guide-title">
-    <div class="dialog-bar"><h2 id="guide-title">How it works</h2><button type="button" class="button quiet" id="close-guide">Close <span aria-hidden="true">×</span></button></div>
-    <div id="dialog-steps" class="process-steps"></div>
-  </dialog>
 </body>
 </html>

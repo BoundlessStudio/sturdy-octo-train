@@ -1,6 +1,6 @@
 # Scrollworks
 
-Type a website idea and follow it through four chapters. Scroll to assemble a Three.js blueprint drawn from the proposed screens and their UI blocks, review feature cards one at a time, and read sandbox updates. Choose **Keep**, **Later**, or **Never** on each feature card. Scroll past the scope recap to begin the build. Each sandbox update adds a short step with an explanation, and the verified site appears in an inline preview at the end.
+Type a website idea and scroll down to send it. Scrollworks shows one step at a time: each scroll reads an update, adds a layer to your Three.js blueprint, or saves the current feature choice (**Keep**, **Later**, or **Never**). Scroll again at the scope recap to start the build. Sandbox updates wait for their own scroll, and the verified site opens in a private inline frame on the last step. Scroll up to reread a step. You can use a wheel, touch swipe, or Page Down.
 
 ## Run locally
 
