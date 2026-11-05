@@ -7,8 +7,8 @@
   <meta name="description" content="Write an idea and scroll through every step of its build.">
   <title>Scrollworks — Build while you scroll</title>
   <link rel="icon" href="/mark.svg?v=paper" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=paper">
-  <script id="app-entry" type="module" src="/app.js?v=paper"></script>
+  <link rel="stylesheet" href="/style.css?v=build-notes">
+  <script id="app-entry" type="module" src="/app.js?v=build-notes"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -48,6 +48,15 @@
                   <div class="utility-actions" id="feed-actions" hidden></div>
                   <p class="feedback" id="feed-feedback" role="status" hidden></p>
                 </aside>
+              </div>
+            </section>
+
+            <section class="pane" id="build-note-pane" aria-labelledby="build-note-title" hidden>
+              <div class="step-content">
+                <p class="eyebrow"><span>BUILD NOTES</span><span id="build-note-index"></span></p>
+                <h2 id="build-note-title"></h2>
+                <p class="step-caption" id="build-note-copy"></p>
+                <ul class="blocks build-note-points" id="build-note-points"></ul>
               </div>
             </section>
 

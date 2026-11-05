@@ -1,4 +1,5 @@
 import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
+import { buildNotesFor } from './build-notes.js';
 import { makeDemo } from './demo.js';
 import { attachReader } from './reader.js?v=paper';
 
@@ -18,6 +19,8 @@ const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
 const PLAN_READY = 'Your blueprint plan is ready.';
+const NOTE_HISTORY_LIMIT = 24;
+const NOTE_CUE = 'Scroll down for a build note';
 const notes = [
   [/requesting a dedicated/i, 'A separate workspace', 'Agent37 creates an isolated workspace for this idea. Hermes can build and check its files there.'],
   [/waiting for Hermes/i, 'Meet the builder', 'Hermes starts inside the workspace and receives your idea as its brief.'],
@@ -74,6 +77,11 @@ function errorStep(phase) {
   return { id: phase + '-error', pane: 'feed', phase, error: true, message: job.error };
 }
 
+function buildNoteStep(entry, pages) {
+  const index = (entry.number - 1) % pages.length;
+  return { ...pages[index], id: 'build-note-' + entry.number, pane: 'build-note', phase: 'build', index, total: pages.length };
+}
+
 function steps() {
   if (!job) return [ideaStep];
   const flow = [ideaStep, planStart, ...eventsFor('plan', job.planLog)];
@@ -87,7 +95,15 @@ function steps() {
     recap,
   );
   if (job.stage === 'scoping') return flow;
-  flow.push(buildStart, ...eventsFor('build', job.log));
+  const updates = [buildStart, ...eventsFor('build', job.log)];
+  const history = job.buildNotes || [];
+  const pages = history.length ? buildNotesFor(job) : [];
+  for (const [after, update] of updates.entries()) {
+    flow.push(update);
+    for (const entry of history) {
+      if (entry.after === after) flow.push(buildNoteStep(entry, pages));
+    }
+  }
   if (job.failedAt === 'build') flow.push(errorStep('build'));
   if (job.stage === 'ready') flow.push(preview);
   return flow;
@@ -103,6 +119,10 @@ function record(phase, message) {
 
 function choiceFor(feature) {
   return job.drafts[feature.id] || job.choices[feature.id] || 'later';
+}
+
+function canBrowseBuildNotes() {
+  return current.phase === 'build' && job?.stage === 'building';
 }
 
 function cueFor(next) {
@@ -123,11 +143,13 @@ function cueFor(next) {
   }
   if (next) {
     if (next === preview) return ['next', 'Scroll down to open the preview'];
+    if (next.pane === 'build-note') return ['next', NOTE_CUE];
     if (next === recap) return ['next', 'Scroll down to review your choices'];
     if (next.pane === 'feature') return ['next', 'Scroll down to see the next feature'];
     if (next.pane === 'blueprint') return ['next', 'Scroll down to lift the next screen'];
     return ['next', 'Scroll down to read the next update'];
   }
+  if (canBrowseBuildNotes()) return ['next', NOTE_CUE];
   if (current === preview) return ['done', 'This is the final step'];
   if (current.error) return ['done', 'This run is paused'];
   return ['wait', 'Waiting for the next update'];
@@ -143,7 +165,10 @@ function updatePrompt() {
   if (instruction.textContent !== label) instruction.textContent = label;
   byId('scroll-help').textContent = state === 'next' ? 'Wheel, swipe up, or Page Down'
     : state === 'wait' ? 'Scroll again when an update arrives' : 'Scroll up to review earlier steps';
-  byId('step-marker').textContent = String(index + 1).padStart(2, '0') + ' / ' + phaseNames[current.phase];
+  if (label === NOTE_CUE && canBrowseBuildNotes()) byId('scroll-help').textContent = 'Build in progress';
+  const stepNumber = flow.slice(0, index + 1).filter(step => step.pane !== 'build-note').length;
+  byId('step-marker').textContent = current.pane === 'build-note' ? 'Build notes'
+    : String(stepNumber).padStart(2, '0') + ' / ' + phaseNames[current.phase];
   byId('back-hint').hidden = index <= 0 || state === 'done';
 }
 
@@ -173,6 +198,8 @@ function show(step, direction = 0) {
     updateIdea();
   } else if (step.pane === 'feed') {
     renderFeed(step);
+  } else if (step.pane === 'build-note') {
+    renderBuildNote(step);
   } else if (step.pane === 'blueprint') {
     renderBlueprint(step);
   } else if (step.pane === 'feature') {
@@ -245,6 +272,15 @@ function renderBlueprint({ index, screen, total }) {
   byId('blueprint-blocks').replaceChildren(...screen.blocks.map(block => node('li', block.label)));
 }
 
+function renderBuildNote({ title, copy, points = [], index, total }) {
+  byId('build-note-index').textContent = (index + 1) + ' / ' + total;
+  byId('build-note-title').textContent = title;
+  byId('build-note-copy').textContent = copy;
+  const list = byId('build-note-points');
+  list.replaceChildren(...points.map(point => node('li', point)));
+  list.hidden = !points.length;
+}
+
 function renderModel(step) {
   model.hidden = step === preview;
   if (model.hidden) return;
@@ -253,14 +289,14 @@ function renderModel(step) {
   const plan = drafting ? draftPlan(idea) : job.plan;
   const title = idea ? plan.title : 'Untitled idea';
   const screens = idea ? screensFor(plan, idea) : [];
-  const focus = step.pane === 'blueprint' ? step.index : -1;
-  const open = focus >= 0 ? focus + 1 : step.phase === 'scope' || step.phase === 'build' ? screens.length : 0;
+  const focus = step.pane === 'blueprint' ? step.index : step.focus ?? -1;
+  const open = step.pane === 'blueprint' ? focus + 1 : step.phase === 'scope' || step.phase === 'build' ? screens.length : 0;
   const detail = {
     idea: job ? 'ORIGINAL SKETCH' : 'SKETCH / AS YOU TYPE',
     plan: drafting ? 'DRAFT SKETCH' : 'PLAN READY',
     blueprint: 'SCREEN ' + open + ' / ' + screens.length,
     scope: 'FIRST RELEASE / SCOPE',
-    build: step.number ? 'SANDBOX / UPDATE ' + step.number : 'SANDBOX / BUILD',
+    build: step.pane === 'build-note' ? 'BUILD NOTES' : step.number ? 'SANDBOX / UPDATE ' + step.number : 'SANDBOX / BUILD',
   }[step.phase];
   byId('model-name').textContent = title;
   byId('model-detail').textContent = detail;
@@ -522,6 +558,7 @@ async function compile() {
   if (operation) return;
   job.stage = 'building';
   job.log = [];
+  job.buildNotes = [];
   delete job.failedAt;
   delete job.error;
   show(buildStart, 1);
@@ -567,6 +604,14 @@ function stepBy(direction) {
     }
   }
   if (next) show(next, direction);
+  else if (direction > 0 && canBrowseBuildNotes()) {
+    // Attach notes to the update they follow. Newly arriving updates then land after them.
+    const history = job.buildNotes ||= [];
+    const entry = { after: job.log.length, number: (history.at(-1)?.number || 0) + 1 };
+    history.push(entry);
+    if (history.length > NOTE_HISTORY_LIMIT) history.shift();
+    show(buildNoteStep(entry, buildNotesFor(job)), direction);
+  }
 }
 
 async function discard(event) {

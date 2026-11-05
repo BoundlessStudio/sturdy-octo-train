@@ -171,6 +171,7 @@ textarea[readonly] + .idea-meta #idea-feedback { color: var(--muted); }
 .blocks { list-style: none; display: grid; gap: 6px; margin-top: 19px; padding: 0; max-width: 32ch; }
 .blocks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--ink); }
 .blocks li::before { content: ""; width: 6px; height: 6px; flex: none; background: var(--accent); }
+.build-note-points { max-width: 46ch; overflow-wrap: anywhere; }
 
 .model-panel {
   min-width: 0;
