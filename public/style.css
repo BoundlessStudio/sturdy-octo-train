@@ -218,7 +218,7 @@ h2[tabindex]:focus { outline: none; }
   letter-spacing: 0;
   white-space: nowrap;
 }
-.example:hover { background: #221d35; border-color: #575075; color: var(--ink); }
+.example:hover:not(:disabled) { background: #221d35; border-color: #575075; color: var(--ink); }
 
 .hero-figure { min-width: 0; margin-top: 10px; }
 .model-panel {
@@ -412,6 +412,8 @@ html:has(body[data-build-active]) { scroll-padding-top: 145px; }
 .scope-counts [data-scope="never"] { color: var(--rose); }
 .scope-counts [data-scope="undecided"] { color: var(--dim); }
 .scope-footer p { margin-top: 6px; font-size: .75rem; }
+.scope-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#scope-feedback { color: var(--rose); }
 
 .build-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 12px; align-items: start; }
 .workbench, .guide { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
@@ -519,6 +521,7 @@ html:has(body[data-build-active]) { scroll-padding-top: 145px; }
   .feature-card h3 { font-size: .93rem; }
   .choices { margin-top: 7px; }
   .scope-footer { align-items: stretch; flex-direction: column; }
+  .scope-actions .button { flex: 1; }
   .process-step { padding: 10px; }
   .footer-inner .mono { display: none; }
 }

@@ -200,6 +200,8 @@ function updateScope() {
     return item;
   }));
   byId('compile').disabled = job.stage !== 'scoping';
+  byId('restart').hidden = job.stage !== 'scoping';
+  byId('restart').textContent = job.id ? 'Delete sandbox' : 'New brief';
 }
 
 function render() {
@@ -213,6 +215,8 @@ function render() {
   rail[1].disabled = !active;
   rail[2].disabled = !active;
   rail[3].disabled = !reviewed;
+  ideaInput.readOnly = active;
+  for (const example of byId('examples').children) example.disabled = active;
   start.disabled = operation;
   start.firstChild.textContent = active ? 'Continue build ' : 'Start building ';
   updateMode();
@@ -495,15 +499,18 @@ function retry() {
 async function publish(event) {
   const control = event.currentTarget;
   if (!confirm('Publish this website? Anyone with the link will be able to open it.')) return;
+  const current = job;
   control.disabled = true;
   showFeedback('Creating a public link…');
   try {
     const { url } = await (await post(buildPath('/publish'))).json();
+    if (job !== current) return;
     job.publicUrl = url;
     save();
     showFeedback('Public link created.');
     renderResult();
   } catch (error) {
+    if (job !== current) return;
     showFeedback(error.message);
     control.disabled = false;
   }
@@ -511,14 +518,20 @@ async function publish(event) {
 
 async function discard(event) {
   if (job.id && !confirm('Delete this sandbox and its site? Its preview and public links will stop working.')) return;
+  const current = job;
   const control = event.currentTarget;
   control.disabled = true;
   try {
     if (job.id) await api(buildPath(), { method: 'DELETE' });
-    reset();
+    if (job === current) reset();
   } catch (error) {
-    if (byId('build').hidden) byId('scope-wait-text').textContent = error.message;
-    else showFeedback(error.message);
+    if (job !== current) return;
+    if (!byId('build').hidden) showFeedback(error.message);
+    else if (!byId('scope-wait').hidden) byId('scope-wait-text').textContent = error.message;
+    else {
+      byId('scope-feedback').textContent = error.message;
+      byId('scope-feedback').hidden = false;
+    }
     control.disabled = false;
   }
 }
@@ -530,6 +543,7 @@ function reset() {
   ideaInput.value = '';
   updateInput();
   showFeedback();
+  byId('scope-feedback').hidden = true;
   save();
   render();
   visit('brief');
@@ -606,6 +620,7 @@ byId('close-guide').addEventListener('click', () => byId('how-dialog').close());
 byId('close-preview').addEventListener('click', () => byId('preview-dialog').close());
 byId('preview-dialog').addEventListener('close', () => { byId('demo-frame').srcdoc = ''; });
 byId('compile').addEventListener('click', compile);
+byId('restart').addEventListener('click', discard);
 ideaInput.addEventListener('input', updateInput);
 form.addEventListener('submit', begin);
 for (const control of document.querySelectorAll('[data-jump], [data-go]')) {

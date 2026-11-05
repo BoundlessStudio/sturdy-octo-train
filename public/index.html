@@ -114,8 +114,12 @@
           <div>
             <div class="scope-counts" id="scope-counts" aria-live="polite"></div>
             <p>Any undecided cards move to Later when you start.</p>
+            <p id="scope-feedback" role="status" hidden></p>
           </div>
-          <button class="button primary" type="button" id="compile">Build this scope <span aria-hidden="true">↓</span></button>
+          <div class="scope-actions">
+            <button class="button quiet" type="button" id="restart">New brief</button>
+            <button class="button primary" type="button" id="compile">Build this scope <span aria-hidden="true">↓</span></button>
+          </div>
         </div>
       </div>
     </section>
