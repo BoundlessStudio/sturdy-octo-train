@@ -21,6 +21,9 @@ export function mountWireframe(panel, layout, progress) {
   const deck = new THREE.Group();
   scene.add(deck);
   let fades = [];
+  let screens = [];
+  let planSignature = '';
+  let spread = 0;
   let lastWidth = 0;
   let lastHeight = 0;
 
@@ -149,16 +152,102 @@ export function mountWireframe(panel, layout, progress) {
     line(page, .74, -1.02, points, mint, .04, 2);
   }
 
-  function rebuild(nextLayout) {
+  function drawLabel(parent, value, left, y, width) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 400;
+    canvas.height = 48;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.font = '600 28px monospace';
+    context.fillStyle = '#e1d4ff';
+    context.textBaseline = 'middle';
+    context.fillText(value, 2, 24, 396);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width * 48 / 400), material);
+    mesh.position.set(left + width / 2, y, .075);
+    mesh.renderOrder = 30;
+    parent.add(mesh);
+    fades.push({ material, layer: 2, alpha: 1, floor: 0 });
+  }
+
+  function plannedBlock(page, block, x, y, width, height) {
+    const area = (px, py, w, h, tint = '#483765', edge = soft) => box(
+      page, x + px * width, y + py * height, width * w, height * h,
+      { fill: tint, edge, z: .039, layer: 2 },
+    );
+    box(page, x, y, width, height, { fill: '#27203e', edge: soft, z: .025, layer: 1 });
+    drawLabel(page, block.label, x - width * .44, y + height * .33, Math.min(width * .88, 2.15));
+    switch (block.kind) {
+      case 'grid':
+        for (const px of [-.28, 0, .28]) {
+          area(px, -.085, .236, .41);
+          area(px - .026, -.35, .14, .028, ink);
+        }
+        break;
+      case 'list':
+        for (const py of [.10, -.11, -.32]) {
+          area(-.36, py, .065, .09, mint);
+          area(-.025, py, .49, .033, ink);
+          area(.355, py, .10, .026, soft);
+        }
+        break;
+      case 'chart': {
+        const points = [[-.42, -.31], [-.27, -.13], [-.12, -.19], [.06, .08], [.21, -.02], [.39, .15]];
+        for (const py of [-.31, -.12, .07]) {
+          line(page, x, y + py * height, [[-.43 * width, 0], [.43 * width, 0]], soft, .042, 2, .55);
+        }
+        line(page, x, y, points.map(([px, py]) => [px * width, py * height]), mint, .052, 2);
+        break;
+      }
+      case 'form':
+        area(0, .09, .83, .12);
+        area(0, -.12, .83, .12);
+        area(-.255, -.32, .32, .11, '#8872c6', ink);
+        break;
+      case 'calendar':
+        for (let row = 0; row < 3; row++) {
+          for (let col = 0; col < 7; col++) {
+            const accent = (row + col) % 5 === 2;
+            area((col - 3) * .117, .11 - row * .19, .098, .135, accent ? '#476d6c' : '#42325e', accent ? mint : soft);
+          }
+        }
+        break;
+      default:
+        area(.218, -.115, .41, .49, '#493861');
+        area(-.25, .055, .35, .075, ink);
+        area(-.28, -.11, .29, .037, soft);
+        area(-.325, -.30, .21, .085, block.kind === 'hero' ? '#8872c6' : '#476d6c');
+        break;
+    }
+  }
+
+  function plannedScreen(page, screen) {
+    drawLabel(page, screen.name, .78, 1.97, 2);
+    const [primary, second, third] = screen.blocks;
+    if (!primary) return;
+    plannedBlock(page, primary, 0, second ? .70 : -.05, 6.37, second ? 1.62 : 3.12);
+    if (second) plannedBlock(page, second, third ? -1.63 : 0, -1.02, third ? 3.11 : 6.37, 1.49);
+    if (third) plannedBlock(page, third, 1.63, -1.02, 3.11, 1.49);
+  }
+
+  function rebuild(nextLayout, planned = []) {
     deck.traverse(object => {
       object.geometry?.dispose();
+      object.material?.map?.dispose();
       object.material?.dispose();
     });
     deck.clear();
     fades = [];
-    makeLayer(.53, -.54, -.95, '#241b39');
-    makeLayer(.27, -.27, -.48, '#2f2449');
-    const front = makeLayer(0, 0, 0, '#18172a');
+    screens = ['#18172a', '#2f2449', '#241b39'].slice(0, planned.length || 3)
+      .map((tint, index) => makeLayer(index * .27, index * -.27, index * -.48, tint));
+    if (planned.length) {
+      screens.forEach((page, index) => plannedScreen(page, planned[index]));
+      panel.dataset.layout = nextLayout;
+      return;
+    }
+    const [front] = screens;
     box(front, 0, -.18, 6.56, 3.55, { edge: '#574973', z: .018, alpha: .78 });
     ({ landing, catalog, dashboard }[nextLayout] || landing)(front);
     panel.dataset.layout = nextLayout;
@@ -169,7 +258,7 @@ export function mountWireframe(panel, layout, progress) {
     const height = viewport.clientHeight;
     if (!width || !height) return;
     const aspect = width / height;
-    const span = Math.max(5.25, 8.7 / aspect);
+    const span = Math.max(5.9 + .55 * spread, (8.85 + .6 * spread) / aspect);
     camera.left = -span * aspect / 2;
     camera.right = span * aspect / 2;
     camera.top = span / 2;
@@ -185,16 +274,20 @@ export function mountWireframe(panel, layout, progress) {
 
   function setProgress(next) {
     progress = next;
-    const phase = Math.min(2, Math.floor(next * 3));
-    panel.dataset.fill = String(phase);
+    spread = 1 - THREE.MathUtils.smoothstep(next, .02, .91);
+    screens[0].position.set(-.38 * spread, .25 * spread, .38 * spread);
+    screens[1]?.position.set(.27 + .29 * spread, -.27 - .18 * spread, -.48 - .66 * spread);
+    screens[2]?.position.set(.53 + .55 * spread, -.54 - .25 * spread, -.95 - 1.26 * spread);
+    deck.rotation.set(-.09 * spread, -.12 * spread, .105 * spread);
+    deck.scale.setScalar(1 - .075 * spread);
     for (const { material, layer, alpha, floor } of fades) {
       const start = layer === 1 ? .11 : .48;
       const step = THREE.MathUtils.smoothstep(next, start, start + .36);
       material.opacity = alpha * (floor + (1 - floor) * step);
       material.visible = material.opacity > .001;
     }
-    camera.position.set(5.1 - next * .62, 3.65 + next * .22, 12.2);
-    camera.lookAt(.13, -.19, -.37);
+    camera.position.set(4.48 + 3.25 * spread, 3.87 + 1.75 * spread, 12.2);
+    camera.lookAt(.13 + .18 * spread, -.19 - .04 * spread, -.37 - .31 * spread);
     render();
   }
 
@@ -209,9 +302,11 @@ export function mountWireframe(panel, layout, progress) {
   });
   return {
     setProgress,
-    setLayout(nextLayout) {
-      if (panel.dataset.layout === nextLayout) return;
-      rebuild(nextLayout);
+    setPlan(nextLayout, planned) {
+      const signature = JSON.stringify([nextLayout, planned]);
+      if (signature === planSignature) return;
+      planSignature = signature;
+      rebuild(nextLayout, planned);
       setProgress(progress);
     },
   };

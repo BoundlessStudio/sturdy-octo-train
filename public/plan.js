@@ -1,5 +1,6 @@
 export const MAX_IDEA = 500;
 export const DECISIONS = ['keep', 'later', 'never'];
+export const BLOCK_KINDS = ['hero', 'grid', 'list', 'chart', 'form', 'calendar', 'detail'];
 
 export const EXAMPLES = [
   { label: 'Studio portfolio', idea: 'A portfolio for a ceramics studio called Kiln & Kind, with a gallery and workshop bookings.' },
@@ -7,9 +8,14 @@ export const EXAMPLES = [
   { label: 'Habit tracker', idea: 'A habit tracker called Daily Loop, with a weekly dashboard and a place to check off habits.' },
 ];
 
+const screen = (name, ...blocks) => ({ name, blocks: blocks.map(([kind, label]) => ({ kind, label })) });
 const presets = {
   landing: {
-    surfaces: ['Home', 'Showcase', 'Contact'],
+    screens: [
+      screen('Home', ['hero', 'Introduction'], ['grid', 'Featured work']),
+      screen('Showcase', ['grid', 'Gallery'], ['detail', 'Project details']),
+      screen('Contact', ['form', 'Contact form'], ['detail', 'Visit information']),
+    ],
     features: [
       ['grid', 'Gallery', 'Give projects, photos, or examples a dedicated space.'],
       ['calendar', 'Booking', 'Let visitors see what they can book and how to get started.'],
@@ -20,7 +26,11 @@ const presets = {
     ],
   },
   catalog: {
-    surfaces: ['Shop', 'Collection', 'Product detail'],
+    screens: [
+      screen('Shop', ['grid', 'Product catalog'], ['list', 'Categories'], ['detail', 'Featured item']),
+      screen('Collection', ['grid', 'Browse products'], ['list', 'Care guides']),
+      screen('Product detail', ['detail', 'Product profile'], ['list', 'Care instructions']),
+    ],
     features: [
       ['grid', 'Product catalog', 'Give visitors a browsable collection with clear product details.'],
       ['search', 'Category filters', 'Help shoppers narrow the collection by what matters to them.'],
@@ -31,7 +41,11 @@ const presets = {
     ],
   },
   dashboard: {
-    surfaces: ['Overview', 'Activity', 'Details'],
+    screens: [
+      screen('Overview', ['chart', 'Weekly progress'], ['list', 'Today’s checklist'], ['grid', 'Overview cards']),
+      screen('Activity', ['calendar', 'Activity calendar'], ['list', 'Recent entries']),
+      screen('Details', ['detail', 'Habit details'], ['form', 'Update progress']),
+    ],
     features: [
       ['grid', 'Overview cards', 'Put the most important information up front.'],
       ['check', 'Checklist', 'Give people a clear way to record what they finish.'],
@@ -43,6 +57,17 @@ const presets = {
   },
 };
 
+function suggestedScreens(layout, idea) {
+  if (layout === 'landing' && /\b(book(?:ing|ings)?|appointments?|workshops?)\b/i.test(idea)) {
+    return [
+      screen('Home', ['hero', 'Studio overview'], ['grid', 'Gallery'], ['list', 'Workshop highlights']),
+      screen('Workshops', ['calendar', 'Workshop calendar'], ['detail', 'Class details']),
+      screen('Booking', ['form', 'Reserve a spot'], ['list', 'Available times']),
+    ];
+  }
+  return presets[layout].screens;
+}
+
 export function draftPlan(idea) {
   const named = /\b(?:called|named)\s+["“]?(.+?)(?=["”.,!?]|\s+with\b|\s+that\b|\s+for\b|$)/iu.exec(idea)?.[1];
   const subject = idea.replace(/^(?:build|create|make|design)\s+(?:me\s+)?/i, '')
@@ -51,13 +76,38 @@ export function draftPlan(idea) {
   const layout = /\b(dashboard|track(?:er|ing)?|planner|habit|monitor)\b/i.test(idea) ? 'dashboard'
     : /\b(shop|store|catalog|products|ecommerce|marketplace)\b/i.test(idea) ? 'catalog' : 'landing';
   const preset = presets[layout];
+  const screens = suggestedScreens(layout, idea);
 
   return {
     title: title.charAt(0).toUpperCase() + title.slice(1),
     layout,
-    surfaces: preset.surfaces,
+    surfaces: screens.map(entry => entry.name),
+    screens,
     features: preset.features.map(([icon, title, detail], index) => ({ id: 'f' + (index + 1), icon, title, detail })),
   };
+}
+
+function clean(value, limit) {
+  if (typeof value !== 'string') return '';
+  // Agent37 stores the compact plan in instance metadata.
+  const encoder = new TextEncoder();
+  let result = '';
+  let size = 0;
+  for (const character of value.trim().slice(0, limit)) {
+    size += encoder.encode(character).length;
+    if (size > limit) break;
+    result += character;
+  }
+  return result.trim();
+}
+
+export function screensFor(plan, idea) {
+  if (plan.screens?.length) return plan.screens;
+  const suggested = suggestedScreens(plan.layout, idea);
+  return (plan.surfaces || suggested.map(entry => entry.name)).map((name, index) => ({
+    name,
+    blocks: suggested[index % suggested.length].blocks,
+  }));
 }
 
 export function parseAgentPlan(output, idea) {
@@ -68,7 +118,6 @@ export function parseAgentPlan(output, idea) {
   if (first === -1 || last < first) return fallback;
   try {
     const data = JSON.parse(raw.slice(first, last + 1));
-    const clean = (value, limit) => typeof value === 'string' ? value.trim().slice(0, limit) : '';
     const features = (Array.isArray(data.features) ? data.features : []).slice(0, 6)
       .map((feature, index) => ({
         id: 'f' + (index + 1),
@@ -79,10 +128,21 @@ export function parseAgentPlan(output, idea) {
     const surfaces = (Array.isArray(data.surfaces) ? data.surfaces : []).slice(0, 3)
       .map(surface => clean(surface, 24)).filter(Boolean);
     const layout = Object.hasOwn(presets, data.layout) ? data.layout : fallback.layout;
+    const rawScreens = Array.isArray(data.screens) ? data.screens.slice(0, 3) : [];
+    const proposed = rawScreens.map(entry => ({
+      name: clean(entry?.name, 24),
+      blocks: (Array.isArray(entry?.blocks) ? entry.blocks : []).slice(0, 3)
+        .filter(block => BLOCK_KINDS.includes(block?.kind))
+        .map(block => ({ kind: block.kind, label: clean(block.label, 22) }))
+        .filter(block => block.label),
+    })).filter(entry => entry.name && entry.blocks.length);
+    const screens = proposed.length >= 2 ? proposed
+      : screensFor({ layout, surfaces: surfaces.length >= 2 ? surfaces : undefined }, idea);
     return {
       title: clean(data.title, 48) || fallback.title,
       layout,
-      surfaces: surfaces.length >= 2 ? surfaces : presets[layout].surfaces,
+      surfaces: screens.map(entry => entry.name),
+      screens,
       features: features.length >= 3 ? features : fallback.features,
     };
   } catch {

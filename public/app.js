@@ -1,4 +1,4 @@
-import { DECISIONS, EXAMPLES, MAX_IDEA, draftPlan, scopeFor } from './plan.js';
+import { DECISIONS, EXAMPLES, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
 import { makeDemo } from './demo.js';
 
 const byId = id => document.getElementById(id);
@@ -25,15 +25,25 @@ const icons = {
 
 const guide = [
   ['Read the brief', 'Start with what the site should do and who will use it. In live mode, Scrollworks starts a dedicated Hermes sandbox on Agent37 and asks it to turn that brief into a short plan.'],
-  ['Sketch the structure', 'The plan names the main screens and suggests a layout. The Three.js blueprint uses that layout to show the page frame, then fills in its content and details as you scroll.'],
-  ['Set the scope', 'Keep goes into the first build. Later keeps a feature in your plan for a future pass. Never tells the builder to leave it out. Unsorted cards go to Later.'],
-  ['Build and check', 'Hermes writes the approved site in its sandbox. Scrollworks checks that the preview loads before it offers a link. In demo mode, your browser assembles a downloadable HTML prototype.'],
+  ['Sketch the structure', 'The plan names the main screens and suggests a layout. Scrolling brings the Three.js frame together and adds its content and details.'],
+  ['Set the scope', 'Review one feature per step. Keep goes into this build, Later goes into the backlog, and Never leaves it out. Scrolling past the recap starts the build.'],
+  ['Build and check', 'Hermes writes the site in its own sandbox. Each actual update adds a step to the page. When the preview passes its HTTPS check, the site appears inside the final frame.'],
 ];
 
-const benchGuide = [
-  ['From brief to files', 'A live build sends your original idea and all three feature groups to Hermes. The agent writes the HTML, styles, and interactions in its own sandbox. Demo builds assemble an HTML page using the selected features.'],
-  ['What the builder checks', 'Scrollworks checks that a live build has an index page and that the sandbox can serve it over HTTPS. You can then open the preview and try the interactions yourself.'],
-  ['Preview and sharing', 'Live previews use a short-lived Agent37 link. Publishing opens the generated site to anyone with its link. Demo builds can be opened here or downloaded as a single HTML file.'],
+const blueprintBeats = [
+  ['Frame', 'Start with the shell.', 'The plan identifies the main screens. Their frames sit on separate layers so you can see how the application is laid out.'],
+  ['Content', 'Give each screen a job.', 'Scroll the panels together and watch the main blocks fill in. A catalog, dashboard, and landing page each have a different structure.'],
+  ['Detail', 'See the shape of the first release.', 'Controls and visual details complete the sketch. The next chapter lets you decide which features go into the actual build.'],
+];
+
+const buildNotes = [
+  [/feature choices|Applied your/, 'The approved scope travels with your original idea. Hermes uses Keep for this release and leaves both Later and Never out of the generated files.'],
+  [/building the site|Assembling/, 'The builder turns the scope into a working page. In live mode Hermes can edit and test files inside its dedicated sandbox while you stay here.'],
+  [/running commands/, 'The sandbox has its own filesystem and tools. Hermes can inspect what it has made and test it before asking Scrollworks to verify the preview.'],
+  [/writing site files/, 'Hermes creates the page, styles, and browser interactions together. The result is a static site the sandbox can serve on its private preview port.'],
+  [/Checking the index/, 'Scrollworks checks for a real index page, starts its preview server, and verifies that the site responds over HTTPS.'],
+  [/verified|ready to open/, 'The checked website loads inside an isolated frame. In live mode its files are read through Scrollworks while the sandbox stays private.'],
+  [/Reconnecting/, 'The build state is saved on the Agent37 instance. Scrollworks can recover the current run after a connection interruption.'],
 ];
 
 let liveAvailable = false;
@@ -43,6 +53,16 @@ let wireframe;
 let demoFile = '';
 let scrollQueued = false;
 let operation = false;
+let lastScrollY = window.scrollY;
+let blueprintStep = -1;
+let drawnProgress;
+let plannedScreens = [];
+let scopeStep = -1;
+let scopeSeen = 0;
+let scopeArmedAt = null;
+let feedStep = -1;
+let feedCount = -1;
+let feedMessage = '';
 
 function element(tag, className, content) {
   const node = document.createElement(tag);
@@ -73,36 +93,81 @@ function updateMode() {
   byId('footer-mode').textContent = live ? 'POWERED BY AGENT37' : 'INTERACTIVE DEMO';
 }
 
+function animateBeat(node) {
+  if (reducedMotion.matches) return;
+  node.getAnimations().forEach(animation => animation.cancel());
+  node.animate(
+    [{ opacity: .35, transform: 'translateY(14px)' }, { opacity: 1, transform: 'translateY(0)' }],
+    { duration: 370, easing: 'cubic-bezier(.16, 1, .3, 1)' },
+  );
+}
+
+function setTrack(id, beats) {
+  const section = byId(id);
+  if (section.dataset.beats === String(beats)) return;
+  section.dataset.beats = String(beats);
+  section.style.setProperty('--beats', beats);
+}
+
+function trackPosition(id, top) {
+  const section = byId(id);
+  const travel = section.clientHeight - section.firstElementChild.offsetHeight;
+  return travel > 0 ? Math.max(0, (top - section.getBoundingClientRect().top) * Number(section.dataset.beats) / travel) : 0;
+}
+
+function updateBlueprint(position) {
+  const index = Math.min(2, Math.floor(position + .1));
+  if (index !== blueprintStep) {
+    blueprintStep = index;
+    const [name, title, copy] = blueprintBeats[index];
+    const lead = plannedScreens[0];
+    const count = '0' + (index + 1) + ' / 03';
+    view.dataset.fill = String(index);
+    byId('blueprint-view-step').textContent = count;
+    byId('blueprint-index').textContent = count + ' · ' + name;
+    byId('blueprint-beat-title').textContent = title;
+    byId('blueprint-beat-copy').textContent = index === 1 && lead
+      ? lead.name + ' takes shape with ' + lead.blocks.map(block => block.label).join(', ') + '. Scroll to see the details fill in.'
+      : copy;
+    byId('blueprint-cue').textContent = ['Scroll to add content', 'Scroll to finish the sketch', 'Scroll to review features'][index];
+    for (const marker of byId('fill-steps').children) {
+      const current = Number(marker.dataset.layer) === index;
+      marker.classList.toggle('is-active', current);
+      if (current) marker.setAttribute('aria-current', 'step');
+      else marker.removeAttribute('aria-current');
+    }
+    animateBeat(byId('blueprint-beat'));
+  }
+  const progress = reducedMotion.matches ? index / 2 : Math.min(1, position / 2.6);
+  if (blueprint && progress !== drawnProgress) {
+    blueprint.setProgress(progress);
+    drawnProgress = progress;
+  }
+}
+
 function updateScroll() {
   scrollQueued = false;
+  const y = window.scrollY;
+  const moving = y !== lastScrollY;
+  const movingDown = y > lastScrollY;
+  lastScrollY = y;
+  const top = document.querySelector('.masthead').offsetHeight + document.querySelector('.rail-wrap').offsetHeight;
   let active = 'brief';
-  const threshold = window.innerHeight * .45;
+  const threshold = Math.max(top + 24, window.innerHeight * .38);
   for (const id of chapters.slice(1)) {
     const section = byId(id);
     if (!section.hidden && section.getBoundingClientRect().top < threshold) active = id;
   }
-  const atEnd = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+  const atEnd = y + window.innerHeight >= document.documentElement.scrollHeight - 2;
   if (atEnd && !byId('build').hidden) active = 'build';
   for (const tab of rail) {
     if (tab.dataset.jump === active) tab.setAttribute('aria-current', 'step');
     else tab.removeAttribute('aria-current');
   }
   if (!job) return;
-  const rect = byId('blueprint').getBoundingClientRect();
-  const modelRect = view.getBoundingClientRect();
-  const narrow = matchMedia('(max-width: 790px)').matches;
-  const raw = narrow ? (window.innerHeight * .66 - modelRect.top) / (window.innerHeight * .59)
-    : (173 - rect.top) / (rect.height * .52 + 55);
-  const progress = Math.max(0, Math.min(raw, 1));
-  const stage = Math.min(2, Math.floor(progress * 3));
-  view.dataset.fill = String(stage);
-  for (const marker of byId('fill-steps').children) {
-    const current = Number(marker.dataset.layer) === stage;
-    marker.classList.toggle('is-active', current);
-    if (current) marker.setAttribute('aria-current', 'step');
-    else marker.removeAttribute('aria-current');
-  }
-  blueprint?.setProgress(reducedMotion.matches ? stage / 2 : progress);
+  updateBlueprint(trackPosition('blueprint', top));
+  updateScopeBeat(trackPosition('scope', top), movingDown, y);
+  if (!byId('build').hidden) updateFeed(trackPosition('build', top), moving);
 }
 
 function queueScroll() {
@@ -122,38 +187,92 @@ function save() {
 }
 
 function record(message) {
-  if (!message || job.log.at(-1)?.message === message) return;
+  if (!message || job.log.some(entry => entry.message === message)) return;
   job.log.push({ time: Date.now(), message });
-  if (job.log.length > 7) job.log.shift();
   save();
-  renderLog();
+  if (job.stage === 'planning') updatePlanningCopy();
+  else prepareFeed();
 }
 
-function renderLog() {
-  const items = job.log.map(({ time, message }) => {
-    const item = element('li');
-    const date = new Date(time);
-    const clock = element('time', '', date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    clock.dateTime = date.toISOString();
-    item.append(clock, element('span', '', message));
-    return item;
-  });
-  byId('activity').replaceChildren(...items);
+function updatePlanningCopy() {
+  const status = job.log.at(-1)?.message || 'Agent37 is preparing your plan.';
+  byId('blueprint-note').textContent = status;
+  byId('scope-wait-text').textContent = status;
+}
+
+function feedEntries() {
+  return job.failedAt === 'build' ? [...job.log, { message: job.error, error: true }] : job.log;
+}
+
+function prepareFeed() {
+  const count = feedEntries().length;
+  if (count !== feedCount) {
+    feedCount = count;
+    const steps = Array.from({ length: count }, (_, index) => {
+      const tick = element('li', '', String(index + 1).padStart(2, '0'));
+      tick.setAttribute('aria-label', 'Update ' + (index + 1));
+      return tick;
+    });
+    byId('feed-steps').replaceChildren(...steps);
+    setTrack('build', Math.max(0, count - 1));
+  }
+  queueScroll();
+}
+
+function updateFeed(position, moving) {
+  const entries = feedEntries();
+  const next = entries.length ? Math.min(entries.length - 1, Math.floor(position + .08)) : 0;
+  // Growing the track leaves the current entry in place until the visitor scrolls.
+  const index = moving || feedStep < 0 ? next : Math.min(feedStep, Math.max(0, entries.length - 1));
+  const entry = entries[index];
+  const message = entry?.message || 'Waiting for the sandbox.';
+  if (feedStep !== index || message !== feedMessage) {
+    feedStep = index;
+    feedMessage = message;
+    const time = entry?.time ? new Date(entry.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+    byId('build-index').textContent = entry ? 'UPDATE ' + String(index + 1).padStart(2, '0') + (time ? ' · ' + time : '') : 'ON STANDBY';
+    byId('build-message').textContent = message;
+    byId('build-guide-copy').textContent = entry?.error
+      ? 'Scroll back through the activity or revise the scope and retry from the same sandbox.'
+      : buildNotes.find(([pattern]) => pattern.test(message))?.[1] ||
+        'Scrollworks sends the approved scope to the sandbox and waits for the first confirmed event.';
+    animateBeat(byId('build-beat'));
+  }
+  const remaining = entries.length - index - 1;
+  const ready = job.stage === 'ready' && remaining === 0;
+  const cue = remaining > 0 ? 'Scroll for the next update · ' + remaining + ' ahead'
+    : entry?.error ? 'Build paused' : ready ? 'Scroll into your preview' : 'Caught up · waiting for the next update';
+  if (byId('build-cue').textContent !== cue) byId('build-cue').textContent = cue;
+  byId('build-state').textContent = ready ? 'VERIFIED' : entry?.error ? 'PAUSED' : 'BUILDING';
+  byId('build-state').dataset.status = ready ? 'ready' : entry?.error ? 'error' : 'building';
+  byId('build-recovery').hidden = !entry?.error;
+  for (const [step, tick] of Array.from(byId('feed-steps').children).entries()) {
+    tick.dataset.step = step === index ? 'current' : step < index ? 'past' : 'ahead';
+    if (step === index) tick.setAttribute('aria-current', 'step');
+    else tick.removeAttribute('aria-current');
+  }
 }
 
 function updatePlan() {
-  byId('surfaces').replaceChildren(...job.plan.surfaces.map(surface => element('span', '', surface)));
+  plannedScreens = screensFor(job.plan, job.idea);
+  blueprintStep = -1;
+  byId('surfaces').replaceChildren(...plannedScreens.map(screen => element('span', '', screen.name)));
   byId('model-name').textContent = job.plan.title.toUpperCase();
-  if (!blueprint && wireframe) blueprint = wireframe.mountWireframe(view, job.plan.layout, 0);
-  blueprint?.setLayout(job.plan.layout);
+  if (!blueprint && wireframe) {
+    blueprint = wireframe.mountWireframe(view, job.plan.layout, 0);
+    drawnProgress = undefined;
+  }
+  blueprint?.setPlan(job.plan.layout, plannedScreens);
   renderCards();
   queueScroll();
 }
 
 function renderCards() {
-  const cards = job.plan.features.map(feature => {
+  const cards = job.plan.features.map((feature, index) => {
     const card = element('article', 'feature-card');
     card.dataset.feature = feature.id;
+    card.inert = true;
+    card.append(element('span', 'mono story-label', 'FEATURE ' + String(index + 1).padStart(2, '0')));
     const copy = element('div', 'feature-copy');
     const icon = element('span', 'feature-icon');
     icon.setAttribute('aria-hidden', 'true');
@@ -180,15 +299,65 @@ function renderCards() {
     return card;
   });
   byId('feature-grid').replaceChildren(...cards);
+  byId('feature-ledger').replaceChildren(...job.plan.features.map((feature, index) => {
+    const item = element('li');
+    item.append(element('span', 'mono', String(index + 1).padStart(2, '0')), element('span', 'ledger-name', feature.title));
+    return item;
+  }));
+  scopeStep = -1;
   updateScope();
+}
+
+function updateScopeBeat(position, movingDown, y) {
+  if (byId('scope-footer').hidden) return;
+  const cards = Array.from(byId('feature-grid').children);
+  const total = cards.length;
+  if (!total) return;
+  const index = Math.min(total, Math.floor(position + .08));
+  const recap = index === total;
+  const scoping = job.stage === 'scoping';
+  if (recap && scoping && !operation && scopeArmedAt === null) {
+    scopeArmedAt = y;
+    setTrack('scope', total + 1);
+  }
+  if (scopeStep !== index) {
+    scopeStep = index;
+    scopeSeen = Math.max(scopeSeen, Math.min(total, index + 1));
+    for (const [step, card] of cards.entries()) {
+      const active = step === index;
+      card.toggleAttribute('data-active', active);
+      card.inert = !active;
+    }
+    for (const [step, item] of Array.from(byId('feature-ledger').children).entries()) {
+      item.dataset.step = step === index ? 'current' : step < scopeSeen ? 'past' : 'ahead';
+      item.lastElementChild.hidden = step >= scopeSeen;
+      if (step === index) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    }
+    byId('scope-review').hidden = !recap;
+    byId('feature-index').textContent = recap ? 'RECAP' : String(index + 1).padStart(2, '0') + ' / ' + String(total).padStart(2, '0');
+    if (recap) animateBeat(byId('scope-review'));
+  }
+  byId('scope-review-title').textContent = scoping ? 'Ready to build?' : 'Scope locked.';
+  byId('scope-review-copy').textContent = scoping
+    ? 'Scroll once more to start the build. Any undecided cards go to Later.'
+    : 'The builder has the approved scope. Scroll into the Build Desk to follow its progress.';
+  byId('scope-cue').textContent = recap
+    ? scoping ? 'Scroll to start the build' : 'Scroll to follow the build'
+    : index === total - 1 ? 'Scroll to review your scope' : 'Scroll for the next feature';
+  if (recap && scoping && !operation && movingDown && scopeArmedAt !== null &&
+      y > scopeArmedAt && position >= total + .93) {
+    void compile();
+  }
 }
 
 function updateScope() {
   const counts = { keep: 0, later: 0, never: 0, undecided: 0 };
-  for (const card of byId('feature-grid').children) {
+  for (const [index, card] of Array.from(byId('feature-grid').children).entries()) {
     const choice = job.choices[card.dataset.feature] || 'undecided';
     counts[choice]++;
     card.dataset.choice = choice;
+    byId('feature-ledger').children[index].dataset.choice = choice;
     for (const control of card.querySelectorAll('button')) {
       control.setAttribute('aria-pressed', String(control.dataset.choice === choice));
       control.disabled = job.stage !== 'scoping';
@@ -199,7 +368,6 @@ function updateScope() {
     item.dataset.scope = key;
     return item;
   }));
-  byId('compile').disabled = job.stage !== 'scoping';
   byId('restart').hidden = job.stage !== 'scoping';
   byId('restart').textContent = job.id ? 'Delete sandbox' : 'New brief';
 }
@@ -211,6 +379,7 @@ function render() {
   byId('blueprint').hidden = !active;
   byId('scope').hidden = !active;
   byId('build').hidden = !reviewed;
+  byId('preview').hidden = job?.stage !== 'ready';
   byId('how').hidden = active;
   rail[1].disabled = !active;
   rail[2].disabled = !active;
@@ -225,42 +394,34 @@ function render() {
 
   const planning = job.stage === 'planning';
   const planFailed = job.stage === 'error' && !reviewed;
+  setTrack('blueprint', 3);
+  setTrack('scope', planning || planFailed ? 0 : job.plan.features.length + (scopeArmedAt !== null || reviewed ? 1 : 0));
   byId('scope-wait').hidden = !(planning || planFailed);
-  byId('feature-grid').hidden = planning || planFailed;
+  byId('feature-deck').hidden = planning || planFailed;
   byId('scope-footer').hidden = planning || planFailed;
   byId('scope-wait-text').textContent = planFailed ? job.error : 'Preparing your feature cards…';
   byId('scope-wait').querySelector('button')?.remove();
+  if (planning || planFailed) {
+    byId('feature-index').textContent = planning ? 'WAITING' : 'PAUSED';
+    byId('scope-cue').textContent = planning ? 'Feature review unlocks when the plan arrives' : 'The plan needs attention';
+  }
   if (planFailed) {
     byId('scope-wait').append(button(job.id ? 'Delete sandbox and restart' : 'Start again', 'text-button', discard));
   }
-  byId('blueprint-note').textContent = planning
-    ? 'The diagram starts with a draft layout while Agent37 prepares the build plan.'
-    : job.live
-      ? 'These screen names describe the proposed layout. Your feature choices set what goes into the first version.'
-      : 'Your browser chose a demo layout from the brief. Review the suggested features to generate an HTML prototype.';
+  if (planning) updatePlanningCopy();
+  else byId('blueprint-note').textContent = job.live ? 'Plan ready for feature review.' : 'Demo plan · assembled in your browser.';
   updateScope();
   if (!reviewed) return;
-
-  const ready = job.stage === 'ready';
-  const failed = job.stage === 'error';
-  byId('build-title').textContent = ready ? 'Your preview is ready.' : failed ? 'The build needs attention.' : 'Your site is taking shape.';
-  byId('build-description').textContent = ready
-    ? 'Open the first version and try it with your approved scope.'
-    : 'The builder uses your approved scope to create and check the first version. The preview opens here as soon as it’s ready.';
-  byId('build-state').textContent = ready ? 'READY' : failed ? 'PAUSED' : 'BUILDING';
-  byId('build-state').dataset.status = job.stage;
-  renderLog();
-  renderResult();
+  prepareFeed();
+  renderRecovery();
+  if (job.stage === 'ready') renderPreview();
 }
 
 function showFeedback(message = '') {
   byId('build-feedback').textContent = message;
   byId('build-feedback').hidden = !message;
-}
-
-function previewDemo() {
-  byId('demo-frame').srcdoc = demoFile;
-  byId('preview-dialog').showModal();
+  byId('recovery-feedback').textContent = message;
+  byId('recovery-feedback').hidden = !message;
 }
 
 function downloadDemo() {
@@ -273,39 +434,36 @@ function downloadDemo() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function renderResult() {
-  const ready = job.stage === 'ready';
-  const failed = job.stage === 'error';
-  const panel = byId('result');
-  panel.hidden = !(ready || failed);
-  if (panel.hidden) return;
-
+function renderPreview() {
   const scope = scopeFor(job.plan, job.choices);
   const summary = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out';
-  const actions = element('div', 'result-actions');
-  panel.replaceChildren(element('h3', '', job.plan.title), element('p', '', failed ? job.error : summary), actions);
-  if (ready && job.live) {
-    const preview = element('a', 'button primary', 'Open private preview ↗');
-    preview.href = '/api/builds/' + encodeURIComponent(job.id) + '/preview';
-    preview.target = '_blank';
-    preview.rel = 'noopener noreferrer';
-    actions.append(preview);
-    if (!job.publicUrl) actions.append(button('Publish public link', 'button quiet', publish));
-    else {
-      const link = element('a', 'result-link', job.publicUrl);
-      link.href = job.publicUrl;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
-      panel.append(link);
-    }
-  } else if (ready) {
+  const actions = byId('preview-actions');
+  const frame = byId('preview-frame');
+  frame.title = job.plan.title + ' website preview';
+  byId('preview-name').textContent = job.plan.title;
+  byId('preview-summary').textContent = summary + '. Try your first release in the frame below.';
+  actions.replaceChildren(button('New brief', 'button quiet', reset));
+  if (job.live) {
+    const path = buildPath('/preview/');
+    frame.removeAttribute('srcdoc');
+    if (frame.getAttribute('src') !== path) frame.src = path;
+    actions.append(button('Delete sandbox', 'text-button danger', discard));
+  } else {
     demoFile = makeDemo(job.idea, job.plan, scope);
-    actions.append(button('Open demo preview ↗', 'button primary', previewDemo), button('Download HTML', 'button quiet', downloadDemo));
+    frame.removeAttribute('src');
+    if (frame.srcdoc !== demoFile) frame.srcdoc = demoFile;
+    actions.append(button('Download HTML', 'button quiet', downloadDemo));
   }
+}
 
-  if (failed && job.id) actions.append(button('Revise scope and retry', 'button quiet', retry));
-  actions.append(button('New brief', 'button quiet', reset));
-  if (job.id) panel.append(button('Delete sandbox', 'text-button danger', discard));
+function renderRecovery() {
+  if (job.failedAt !== 'build') return;
+  const panel = byId('recovery-actions');
+  panel.replaceChildren(button('New brief', 'button quiet', reset));
+  if (job.id) panel.append(
+    button('Revise scope and retry', 'button quiet', retry),
+    button('Delete sandbox', 'text-button danger', discard),
+  );
 }
 
 async function api(url, options) {
@@ -399,7 +557,6 @@ async function recover(phase) {
       job.stage = state.stage;
       job.plan = state.plan;
       job.choices = state.choices || job.choices;
-      job.publicUrl = state.publicUrl;
       delete job.failedAt;
       record(state.stage === 'ready' ? 'Preview verified.' : 'Build plan ready to review.');
       save();
@@ -463,11 +620,13 @@ async function compile() {
   for (const feature of job.plan.features) job.choices[feature.id] ??= 'later';
   job.stage = 'building';
   job.log = [];
+  feedStep = -1;
+  feedCount = -1;
+  feedMessage = '';
   delete job.failedAt;
   save();
   showFeedback();
   render();
-  visit('build');
 
   await finishOperation(async () => {
     if (job.live) {
@@ -489,6 +648,7 @@ async function compile() {
 
 function retry() {
   job.stage = 'scoping';
+  scopeArmedAt = null;
   delete job.error;
   delete job.failedAt;
   save();
@@ -496,28 +656,8 @@ function retry() {
   visit('scope');
 }
 
-async function publish(event) {
-  const control = event.currentTarget;
-  if (!confirm('Publish this website? Anyone with the link will be able to open it.')) return;
-  const current = job;
-  control.disabled = true;
-  showFeedback('Creating a public link…');
-  try {
-    const { url } = await (await post(buildPath('/publish'))).json();
-    if (job !== current) return;
-    job.publicUrl = url;
-    save();
-    showFeedback('Public link created.');
-    renderResult();
-  } catch (error) {
-    if (job !== current) return;
-    showFeedback(error.message);
-    control.disabled = false;
-  }
-}
-
 async function discard(event) {
-  if (job.id && !confirm('Delete this sandbox and its site? Its preview and public links will stop working.')) return;
+  if (job.id && !confirm('Delete this sandbox and its site? The preview will stop working.')) return;
   const current = job;
   const control = event.currentTarget;
   control.disabled = true;
@@ -540,6 +680,15 @@ function reset() {
   if (operation) return;
   job = null;
   demoFile = '';
+  blueprintStep = -1;
+  scopeStep = -1;
+  scopeSeen = 0;
+  scopeArmedAt = null;
+  feedStep = -1;
+  feedCount = -1;
+  feedMessage = '';
+  byId('preview-frame').removeAttribute('src');
+  byId('preview-frame').removeAttribute('srcdoc');
   ideaInput.value = '';
   updateInput();
   showFeedback();
@@ -592,12 +741,6 @@ function populateGuide(id) {
 
 populateGuide('process-steps');
 populateGuide('dialog-steps');
-byId('build-notes').append(...benchGuide.map(([title, detail], index) => {
-  const item = element('details');
-  item.open = index === 0;
-  item.append(element('summary', '', title), element('p', '', detail));
-  return item;
-}));
 for (const example of EXAMPLES) {
   byId('examples').append(button(example.label, 'example', () => {
     ideaInput.value = example.idea;
@@ -617,14 +760,11 @@ byId('how-link').addEventListener('click', () => {
   else visit('how');
 });
 byId('close-guide').addEventListener('click', () => byId('how-dialog').close());
-byId('close-preview').addEventListener('click', () => byId('preview-dialog').close());
-byId('preview-dialog').addEventListener('close', () => { byId('demo-frame').srcdoc = ''; });
-byId('compile').addEventListener('click', compile);
 byId('restart').addEventListener('click', discard);
 ideaInput.addEventListener('input', updateInput);
 form.addEventListener('submit', begin);
-for (const control of document.querySelectorAll('[data-jump], [data-go]')) {
-  control.addEventListener('click', () => visit(control.dataset.jump || control.dataset.go));
+for (const control of rail) {
+  control.addEventListener('click', () => visit(control.dataset.jump));
 }
 window.addEventListener('scroll', queueScroll, { passive: true });
 window.addEventListener('resize', queueScroll);

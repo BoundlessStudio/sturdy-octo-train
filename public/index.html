@@ -30,7 +30,7 @@
       <div class="hero-copy">
         <div class="eyebrow"><span class="signal"></span> THE INTERACTIVE SITE BUILDER</div>
         <h1 id="hero-title">Build while<br> you <em>scroll.</em></h1>
-        <p class="hero-lede">Type an idea. Watch your site take shape as you go, and decide what belongs in the first build.</p>
+        <p class="hero-lede">Type an idea, then scroll to assemble the blueprint, shape the scope, and follow your build to a working preview.</p>
 
         <form id="idea-form" class="idea-form">
           <label for="idea"><span aria-hidden="true">✦</span> YOUR IDEA</label>
@@ -73,80 +73,116 @@
       </ol>
     </nav>
 
-    <section class="shell chapter blueprint" id="blueprint" aria-labelledby="blueprint-title" hidden>
-      <div class="blueprint-copy">
-        <div class="eyebrow"><span class="chapter-number">02</span> BLUEPRINT</div>
-        <h2 id="blueprint-title" tabindex="-1">See it take shape.</h2>
-        <p>The blueprint maps out your pages and the places visitors will use most. Scroll through this chapter to bring the frame, content, and detail into view.</p>
-        <div class="surface-list" id="surfaces" aria-label="Planned screens"></div>
-        <aside class="field-note">
-          <span class="mono"><i class="signal"></i> WHAT’S HAPPENING</span>
-          <p id="blueprint-note" aria-live="polite"></p>
-        </aside>
-        <button type="button" class="button quiet" data-go="scope">Review features <span aria-hidden="true">↓</span></button>
-      </div>
-      <div>
-        <div class="model-panel blueprint-model" id="blueprint-model" data-layout="landing" data-fill="0">
-          <div class="model-top"><span><i></i> WIREFRAME VIEW</span><span>02 / 04</span></div>
-          <div class="viewport" aria-hidden="true"><img class="model-fallback" src="/blueprint.svg" alt=""></div>
-          <div class="model-bottom"><span id="model-name">APPLICATION SHELL</span><span>ORTHOGRAPHIC</span></div>
+    <section class="story-track chapter" id="blueprint" aria-labelledby="blueprint-title" hidden>
+      <div class="shell story-stage blueprint">
+        <div class="blueprint-copy">
+          <div class="eyebrow"><span class="chapter-number">02</span> BLUEPRINT</div>
+          <h2 id="blueprint-title" tabindex="-1">See it take shape.</h2>
+          <div class="story-copy" id="blueprint-beat">
+            <p class="mono story-label" id="blueprint-index"></p>
+            <h3 id="blueprint-beat-title"></h3>
+            <p id="blueprint-beat-copy"></p>
+          </div>
+          <div class="surface-list" id="surfaces" aria-label="Planned screens"></div>
+          <p class="story-meta" id="blueprint-note" role="status"></p>
+          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="blueprint-cue">Scroll to assemble</span></p>
         </div>
-        <div class="fill-steps" id="fill-steps" aria-label="Blueprint layers">
-          <span data-layer="0" class="is-active"><i></i> Frame</span>
-          <span data-layer="1"><i></i> Content</span>
-          <span data-layer="2"><i></i> Detail</span>
+        <div class="blueprint-display">
+          <div class="model-panel blueprint-model" id="blueprint-model" data-layout="landing" data-fill="0">
+            <div class="model-top"><span><i></i> WIREFRAME VIEW</span><span id="blueprint-view-step">01 / 03</span></div>
+            <div class="viewport" aria-hidden="true"><img class="model-fallback" src="/blueprint.svg" alt=""></div>
+            <div class="model-bottom"><span id="model-name">APPLICATION SHELL</span><span>ORTHOGRAPHIC</span></div>
+          </div>
+          <div class="fill-steps" id="fill-steps" aria-label="Blueprint layers">
+            <span data-layer="0" class="is-active"><i></i> Frame</span>
+            <span data-layer="1"><i></i> Content</span>
+            <span data-layer="2"><i></i> Detail</span>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="chapter section-tint" id="scope" aria-labelledby="scope-title" hidden>
+    <section class="story-track chapter section-tint" id="scope" aria-labelledby="scope-title" hidden>
+      <div class="shell story-stage scope-story">
+        <div class="story-intro">
+          <div class="eyebrow"><span class="chapter-number">03</span> FEATURE REVIEW</div>
+          <h2 id="scope-title" tabindex="-1">Shape the first release.</h2>
+          <p>Scroll through the ideas one at a time. Keep what belongs in this build, set it aside for Later, or choose Never to leave it out.</p>
+          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="scope-cue">Scroll to review</span></p>
+        </div>
+        <div class="scope-console">
+          <div class="story-top">
+            <span class="mono"><i class="signal"></i> PROPOSED SCOPE</span>
+            <span class="mono" id="feature-index">WAITING</span>
+          </div>
+          <div class="scope-wait" id="scope-wait" hidden><i class="signal"></i><span id="scope-wait-text" role="status">Preparing your feature cards…</span></div>
+          <div class="feature-deck" id="feature-deck">
+            <div class="feature-grid" id="feature-grid" aria-label="Feature cards"></div>
+            <article class="scope-review" id="scope-review" hidden>
+              <span class="mono story-label">SCOPE CHECKPOINT</span>
+              <h3 id="scope-review-title">Ready to build?</h3>
+              <p id="scope-review-copy">Scroll once more to start the build. Any undecided cards go to Later.</p>
+            </article>
+          </div>
+          <div class="scope-footer" id="scope-footer" hidden>
+            <ol class="feature-ledger" id="feature-ledger" aria-label="Feature list"></ol>
+            <div class="scope-bottom">
+              <div class="scope-counts" id="scope-counts" aria-live="polite"></div>
+              <button class="text-button" type="button" id="restart">New brief</button>
+            </div>
+            <p id="scope-feedback" role="status" hidden></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="story-track chapter build" id="build" aria-labelledby="build-title" hidden>
+      <div class="shell story-stage build-story">
+        <div class="story-intro">
+          <div class="eyebrow"><span class="chapter-number">04</span> BUILD DESK</div>
+          <h2 id="build-title" tabindex="-1">Follow the build.</h2>
+          <p>Each update adds one short step. Scroll to read it while the sandbox keeps working.</p>
+          <p class="scroll-cue"><span aria-hidden="true">↓</span><span id="build-cue" role="status">Waiting for the first update</span></p>
+        </div>
+        <div class="workbench">
+          <div class="story-top">
+            <span class="mono"><i class="signal"></i> SANDBOX FEED</span>
+            <span id="build-state" class="state-chip">BUILDING</span>
+          </div>
+          <div id="activity" class="activity">
+            <div id="build-beat" class="story-copy">
+              <p class="mono story-label" id="build-index"></p>
+              <h3 id="build-message"></h3>
+            </div>
+            <div class="feed-guide">
+              <span class="mono story-label">INSIDE THE BUILD</span>
+              <p id="build-guide-copy"></p>
+            </div>
+          </div>
+          <ol class="feed-steps" id="feed-steps" aria-label="Build updates"></ol>
+          <div id="build-recovery" class="result" hidden>
+            <p id="recovery-feedback" role="status" hidden></p>
+            <div class="result-actions" id="recovery-actions"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="chapter preview-chapter" id="preview" aria-labelledby="preview-title" hidden>
       <div class="shell">
         <div class="chapter-heading">
           <div>
-            <div class="eyebrow"><span class="chapter-number">03</span> FEATURE REVIEW</div>
-            <h2 id="scope-title" tabindex="-1">Shape the first release.</h2>
+            <div class="eyebrow"><span class="signal"></span> FINAL FRAME</div>
+            <h2 id="preview-title" tabindex="-1">Your site is here.</h2>
           </div>
-          <p>Keep what belongs in this build. Save ideas for later or rule them out. You can change any choice before you start.</p>
+          <p id="preview-summary"></p>
         </div>
-        <div class="scope-wait" id="scope-wait" hidden><i class="signal"></i><span id="scope-wait-text">Preparing your feature cards…</span></div>
-        <div class="feature-grid" id="feature-grid"></div>
-        <div class="scope-footer" id="scope-footer" hidden>
-          <div>
-            <div class="scope-counts" id="scope-counts" aria-live="polite"></div>
-            <p>Any undecided cards move to Later when you start.</p>
-            <p id="scope-feedback" role="status" hidden></p>
-          </div>
-          <div class="scope-actions">
-            <button class="button quiet" type="button" id="restart">New brief</button>
-            <button class="button primary" type="button" id="compile">Build this scope <span aria-hidden="true">↓</span></button>
-          </div>
+        <div class="preview-window">
+          <div class="story-top"><span class="mono"><i class="signal"></i> <span id="preview-name">PRIVATE PREVIEW</span></span><span class="mono">LIVE FRAME</span></div>
+          <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer" loading="lazy"></iframe>
         </div>
-      </div>
-    </section>
-
-    <section class="shell chapter build" id="build" aria-labelledby="build-title" hidden>
-      <div class="chapter-heading">
-        <div>
-          <div class="eyebrow"><span class="chapter-number">04</span> BUILD DESK</div>
-          <h2 id="build-title" tabindex="-1">Your site is taking shape.</h2>
-        </div>
-        <p id="build-description">The builder uses your approved scope to create and check the first version. The preview opens here as soon as it’s ready.</p>
-      </div>
-      <div class="build-grid">
-        <div class="workbench">
-          <div class="bench-header">
-            <span class="mono"><i class="signal"></i> BUILD ACTIVITY</span>
-            <span id="build-state" class="state-chip">BUILDING</span>
-          </div>
-          <ol id="activity" class="activity" aria-live="polite" aria-relevant="additions"></ol>
-          <p id="build-feedback" role="status" class="inline-feedback" hidden></p>
-          <div id="result" class="result" hidden></div>
-        </div>
-        <aside id="field-guide" class="guide" aria-label="How the builder works">
-          <div class="mono guide-label">FIELD GUIDE</div>
-          <h3>Inside the build</h3>
-          <div class="guide-notes" id="build-notes"></div>
-        </aside>
+        <p id="build-feedback" role="status" class="inline-feedback" hidden></p>
+        <div class="result-actions" id="preview-actions"></div>
       </div>
     </section>
 
@@ -172,10 +208,6 @@
     </div>
   </footer>
 
-  <dialog id="preview-dialog" aria-labelledby="preview-title">
-    <div class="dialog-bar"><h2 id="preview-title">Demo preview</h2><button type="button" class="button quiet" id="close-preview">Close <span aria-hidden="true">×</span></button></div>
-    <iframe id="demo-frame" title="Generated demo website" sandbox></iframe>
-  </dialog>
   <dialog id="how-dialog" aria-labelledby="guide-title">
     <div class="dialog-bar"><h2 id="guide-title">How it works</h2><button type="button" class="button quiet" id="close-guide">Close <span aria-hidden="true">×</span></button></div>
     <div id="dialog-steps" class="process-steps"></div>
