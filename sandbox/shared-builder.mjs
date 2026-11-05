@@ -12,6 +12,7 @@ const OWNER = /^(?:[a-f0-9]{64}|local-scrollworks)$/;
 const BUILD_PATH = /^\/scrollworks\/builds\/([a-f0-9]{32})(?:\/(compile|preview(?:\/index\.html|\/)?))?$/;
 const MAX_ACTIVE = 2;
 const MAX_HTML = 512 * 1024;
+const MODEL_TIMEOUT = 180_000;
 
 class RequestError extends Error {
   constructor(status, message) {
@@ -41,25 +42,69 @@ function pagePrompt(state, scope) {
   ].join('\n');
 }
 
-async function managedGeneration(prompt, phase, signal) {
+function incompleteResult() {
+  return new RequestError(502, 'The model returned an incomplete result. Try again.');
+}
+
+async function readPageStream(body, report) {
+  if (!body) throw incompleteResult();
+  let pending = '';
+  let html = '';
+  let sawStyles = false;
+  let finished = false;
+  for await (const chunk of body.pipeThrough(new TextDecoderStream())) {
+    const lines = (pending + chunk).split('\n');
+    pending = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return html;
+      const event = JSON.parse(data);
+      const choice = event.choices?.[0];
+      if (event.error || choice?.finish_reason === 'error') {
+        throw new RequestError(502, 'The model stopped while generating the page. Try again.');
+      }
+      if (['length', 'content_filter'].includes(choice?.finish_reason)) throw incompleteResult();
+      if (choice?.finish_reason === 'stop') finished = true;
+      const content = choice?.delta?.content;
+      if (typeof content !== 'string' || !content) continue;
+      if (!html) report('The first page code is coming in.');
+      html += content;
+      if (html.length > MAX_HTML) throw incompleteResult();
+      if (!sawStyles && /<\/style\s*>/i.test(html)) {
+        sawStyles = true;
+        report('The page styles came through.');
+      }
+    }
+  }
+  if (!finished) throw incompleteResult();
+  return html;
+}
+
+async function managedGeneration(prompt, phase, signal, report) {
   const { AGENT37_LLM_PROXY_URL: base, AGENT37_MANAGED_TOKEN: token } = process.env;
   if (!base || !token) throw new RequestError(502, 'The shared builder is missing its Agent37 model configuration.');
+  const stream = phase === 'building';
   const response = await fetch(base.replace(/\/$/, '') + '/chat/completions', {
     method: 'POST',
     headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
     body: JSON.stringify({ model: 'default', messages: [{ role: 'user', content: prompt }],
-      max_tokens: phase === 'planning' ? 1500 : 12000 }),
+      max_tokens: stream ? 12000 : 1500, stream }),
     redirect: 'error',
-    signal: AbortSignal.any([signal, AbortSignal.timeout(180_000)]),
+    signal,
   });
   if (!response.ok) {
     await response.body?.cancel();
     throw new RequestError(502, response.status === 402 ? 'The Agent37 workspace needs available model credits.' : 'The Agent37 model could not finish the request. Try again.');
   }
+  if (stream) {
+    report('Agent37 accepted the page request.');
+    return readPageStream(response.body, report);
+  }
   const { choices } = await response.json();
   const choice = choices?.[0];
   if (typeof choice?.message?.content !== 'string' || !choice.message.content.trim() || choice.finish_reason === 'length') {
-    throw new RequestError(502, 'The model returned an incomplete result. Try again.');
+    throw incompleteResult();
   }
   return choice.message.content;
 }
@@ -131,24 +176,34 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
     }
     return state;
   }
-  const snapshot = (id, { stage, plan, choices, error }) => ({ id, stage, plan, choices, error });
+  const snapshot = (id, { stage, plan, choices, error, updates }) => ({ id, stage, plan, choices, error, updates });
   function capacity() {
     if (active.size >= MAX_ACTIVE) throw new RequestError(429, 'The shared builder is busy. Try again in a moment.');
   }
   async function run(id, state, prompt, controller) {
+    const timeout = AbortSignal.timeout(MODEL_TIMEOUT);
+    const signal = AbortSignal.any([controller.signal, timeout]);
+    const report = message => {
+      signal.throwIfAborted();
+      state.updates.push({ message, time: now() });
+      writeState(id, state);
+    };
     try {
-      const output = await generate(prompt, state.stage, controller.signal);
-      if (controller.signal.aborted) return;
+      const output = await generate(prompt, state.stage, signal, report);
+      signal.throwIfAborted();
       if (now() >= state.createdAt + HOUR) return remove(id);
       if (state.stage === 'planning') {
         writeState(id, { ...state, stage: 'scoping', plan: parseAgentPlan(output, state.idea) });
       } else {
+        report('Checking that the page is complete.');
         writeFileSync(join(folder(id), 'index.html'), pageHtml(output), { mode: 0o600 });
+        state.updates.push({ message: 'Saved the site in your build folder.', time: now() });
         writeState(id, { ...state, stage: 'ready' });
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        const message = error instanceof RequestError ? error.message : 'The build was interrupted. Try again.';
+        const message = timeout.aborted ? 'The model timed out before it finished. Try again.'
+          : error instanceof RequestError ? error.message : 'The build was interrupted. Try again.';
         writeState(id, { ...state, stage: 'error', error: message });
       }
     } finally {
@@ -201,6 +256,7 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
       const scope = scopeFor(state.plan, payload?.choices);
       state.choices = Object.fromEntries(Object.entries(scope).flatMap(([choice, features]) => features.map(feature => [feature.id, choice])));
       state.stage = 'building';
+      state.updates = [{ message: 'The builder received your feature choices.', time: now() }];
       delete state.error;
       start(id, state, pagePrompt(state, scope));
       return send(response, 202, snapshot(id, state));

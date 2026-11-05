@@ -19,7 +19,6 @@ const planStart = { id: 'plan-start', pane: 'blueprint', phase: 'plan', index: 0
 const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
-const NOTE_HISTORY_LIMIT = 24;
 const NOTE_CUE = 'Scroll down for a build note';
 const planNotes = [
   { title: 'From idea to screens.', copy: 'The builder reads your brief and proposes screens. Each block in the wireframe represents a part of the site, such as a gallery, a calendar, or a form.' },
@@ -28,12 +27,15 @@ const planNotes = [
 ].map((note, index, all) => ({ ...note, id: 'plan-note-' + index, pane: 'build-note', phase: 'plan', index, total: all.length }));
 const notes = [
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
+  [/accepted the page request/i, 'From brief to code', 'The model gets your brief, the wireframe, and the choices you saved for this version.'],
+  [/first page code/i, 'The page is coming together', 'The builder is receiving the HTML, styles, and interactions for your page.'],
+  [/styles came through/i, 'The visual layer', 'The styles give your layout its spacing, type, and color. The builder is still receiving the rest of the page.'],
   [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
   [/writing site files/i, 'The site takes shape', 'Hermes writes the site files in its workspace and connects the pieces of the approved design.'],
-  [/checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that the generated site responds before making the final frame available.'],
+  [/checking that the page|checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that it received a complete page and can serve it in the final frame.'],
+  [/saved the site/i, 'Ready to serve', 'Your generated page is on disk in the folder for this build.'],
   [/verified|ready to open/i, 'A private frame', 'The finished site opens inside an isolated frame on the last scroll step.'],
-  [/reconnecting/i, 'Picking up the build', 'The workspace saves the build state so Scrollworks can recover after a connection interruption.'],
 ];
 
 let job;
@@ -74,7 +76,7 @@ function errorStep(phase) {
 }
 
 function buildNoteStep(entry, pages) {
-  const index = (entry.number - 1) % pages.length;
+  const index = entry.number - 1;
   return { ...pages[index], id: 'build-note-' + entry.number, pane: 'build-note', phase: 'build', index, total: pages.length };
 }
 
@@ -102,7 +104,7 @@ function steps() {
   for (const [after, update] of updates.entries()) {
     flow.push(update);
     for (const entry of history) {
-      if (entry.after === after) flow.push(buildNoteStep(entry, pages));
+      if (entry.after === after && entry.number <= pages.length) flow.push(buildNoteStep(entry, pages));
     }
   }
   if (job.failedAt === 'build') flow.push(errorStep('build'));
@@ -121,11 +123,15 @@ function nextStep(flow, index) {
   return next;
 }
 
-function recordBuild(message) {
-  if (!message || job.log.at(-1)?.message === message) return;
-  job.log.push({ message, time: Date.now() });
+function recordBuild(message, time = Date.now()) {
+  if (!message || job.log.some(entry => entry.message === message)) return;
+  job.log.push({ message, time });
   save();
   updatePrompt();
+}
+
+function recordBuildUpdates(state) {
+  for (const update of state?.updates || []) recordBuild(update.message, update.time);
 }
 
 function choiceFor(feature) {
@@ -133,7 +139,8 @@ function choiceFor(feature) {
 }
 
 function canBrowseBuildNotes() {
-  return current.phase === 'build' && job?.stage === 'building';
+  return current.phase === 'build' && job?.stage === 'building'
+    && (job.buildNotes?.at(-1)?.number || 0) < buildNotesFor(job).length;
 }
 
 function cueFor(next) {
@@ -152,6 +159,7 @@ function cueFor(next) {
     if (!job.id) return ['next', 'Scroll down to edit your idea'];
   }
   if (next) {
+    if (next.error) return ['next', 'Scroll down to see why the build stopped'];
     if (next === preview) return ['next', 'Scroll down to open the preview'];
     if (next.pane === 'build-note') return ['next', next.phase === 'plan' ? 'Scroll down for a planning note' : NOTE_CUE];
     if (next === recap) return ['next', 'Scroll down to review your choices'];
@@ -164,6 +172,7 @@ function cueFor(next) {
   if (current === preview) return ['done', 'This is the final step'];
   if (current.error) return ['done', 'This run is paused'];
   if (job?.stage === 'planning') return ['wait', 'Finishing your blueprint…'];
+  if (job?.stage === 'building') return ['wait', 'Waiting for the next build update…'];
   return ['wait', 'Waiting for the next update'];
 }
 
@@ -255,7 +264,9 @@ function renderFeed(step) {
   const { phase, error, message, number, time } = step;
   const plan = phase === 'plan';
   const note = error
-    ? ['What you can do', 'Scroll up to reread the last update. ' + (plan ? 'Start with a fresh idea if you want to try again.' : 'Scroll down to retry with the approved scope.')]
+    ? ['What you can do', 'Scroll up to reread the last update. ' + (job.id
+      ? plan ? 'Use Reset to start with a fresh idea.' : 'Scroll down to retry with the approved scope.'
+      : 'Scroll down to edit your idea and start again.')]
     : step === buildStart
       ? ['The build is underway', 'Your choices define the first version. Each update waits for you to scroll to it.']
       : (notes.find(([pattern]) => pattern.test(message))?.slice(1) ||
@@ -437,9 +448,9 @@ async function api(url, options) {
   throw error;
 }
 
-const post = (url, data, signal) => api(url, {
+const post = (url, data, signal, accept = 'application/x-ndjson') => api(url, {
   method: 'POST',
-  headers: { 'content-type': 'application/json' },
+  headers: { accept, 'content-type': 'application/json' },
   body: JSON.stringify(data),
   signal,
 });
@@ -447,6 +458,8 @@ const post = (url, data, signal) => api(url, {
 function buildPath(suffix = '') {
   return '/api/builds/' + encodeURIComponent(job.id) + suffix;
 }
+
+const isSharedBuild = () => /^[a-f0-9]{32}$/.test(job?.id || '');
 
 function completePlan(plan) {
   job.plan = plan;
@@ -465,7 +478,6 @@ async function readEvents(response, phase, signal) {
   if (!response.body) throw new Error('The build connection ended before it sent a result.');
   const stream = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
-  let terminal = false;
   try {
     for (;;) {
       const { value, done } = await stream.read();
@@ -476,18 +488,18 @@ async function readEvents(response, phase, signal) {
       for (const line of lines) {
         if (!line.trim()) continue;
         const event = JSON.parse(line);
-        if (event.type === 'status' && phase === 'build') recordBuild(event.message);
+        if (event.type === 'status' && phase === 'build') recordBuild(event.message, event.time);
         if (event.type === 'sandbox') {
           job.id = event.id;
           save();
         }
         if (event.type === 'plan') {
           completePlan(event.plan);
-          terminal = true;
+          return;
         }
         if (event.type === 'ready') {
           completeBuild();
-          terminal = true;
+          return;
         }
         if (event.type === 'error') {
           const error = new Error(event.message);
@@ -500,29 +512,37 @@ async function readEvents(response, phase, signal) {
   } finally {
     await stream.cancel().catch(() => {});
   }
-  if (!terminal) throw new Error('The build connection ended before it sent a result.');
+  throw new Error('The build connection ended before it sent a result.');
 }
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
+const requestSignal = signal => AbortSignal.any([signal, AbortSignal.timeout(22_000)]);
 
 async function recover(phase, signal) {
-  const deadline = Date.now() + 12 * 60 * 1000;
-  if (phase === 'build') recordBuild('Reconnecting to the sandbox…');
+  const shared = phase === 'build' && isSharedBuild();
+  const deadline = Date.now() + (shared ? 225_000 : 12 * 60_000);
   while (Date.now() < deadline) {
     signal.throwIfAborted();
     let state;
     try {
-      state = await (await api(buildPath(), { signal })).json();
+      state = await (await api(buildPath(), { signal: requestSignal(signal) })).json();
     } catch (error) {
-      if ([403, 404, 410, 503].includes(error.status)) throw error;
+      if ([401, 403, 404, 410, 503].includes(error.status)) throw error;
     }
     signal.throwIfAborted();
+    if (phase === 'build') recordBuildUpdates(state);
     if (state?.stage === 'error') throw new Error(state.error || 'The sandbox reported a build error.');
     if (phase === 'plan' && state?.stage === 'scoping') {
       completePlan(state.plan);
       return;
     }
     if (phase === 'build' && state?.stage === 'ready') {
+      if (shared) {
+        recordBuild('Checking the private preview.');
+        const response = await api(buildPath('/preview/'), { method: 'HEAD', redirect: 'error', signal: requestSignal(signal) });
+        signal.throwIfAborted();
+        if (!response.headers.get('content-type')?.includes('text/html')) throw new Error('The builder could not serve the generated page.');
+      }
       job.plan = state.plan;
       job.choices = state.choices || job.choices;
       recordBuild('Preview verified.');
@@ -530,9 +550,9 @@ async function recover(phase, signal) {
       return;
     }
     if (phase === 'build' && state?.stage === 'scoping') throw new Error('The sandbox did not receive the build. Scroll to retry.');
-    await pause(4500);
+    await pause(shared ? 2000 : 4500);
   }
-  throw new Error('The sandbox has not reported a result yet. Reload Scrollworks to reconnect.');
+  throw new Error('The builder has not reported a result yet.');
 }
 
 async function run(phase, task, reconnect = true) {
@@ -589,6 +609,7 @@ async function sendIdea() {
 
 async function compile() {
   if (operation) return;
+  const shared = job.live && isSharedBuild();
   job.stage = 'building';
   job.log = [];
   job.buildNotes = [];
@@ -596,6 +617,24 @@ async function compile() {
   delete job.error;
   show(buildStart, 1);
   await run('build', async signal => {
+    if (shared) {
+      try {
+        const response = await post(buildPath('/compile'), { choices: job.choices }, requestSignal(signal), 'application/json');
+        if (response.headers.get('content-type')?.includes('application/json')) {
+          const state = await response.json();
+          signal.throwIfAborted();
+          recordBuildUpdates(state);
+        } else {
+          await response.body?.cancel();
+        }
+      } catch (error) {
+        signal.throwIfAborted();
+        // An interrupted submission or a conflict may already have a build running.
+        if (error.status && error.status !== 409 && error.status < 500) throw error;
+      }
+      await recover('build', signal);
+      return;
+    }
     if (job.live) {
       await readEvents(await post(buildPath('/compile'), { choices: job.choices }, signal), 'build', signal);
       return;
@@ -611,7 +650,7 @@ async function compile() {
     if (!document.querySelector('main h1')) throw new Error('The demo preview could not be assembled.');
     recordBuild('Demo HTML is ready to open.');
     completeBuild();
-  });
+  }, !shared);
 }
 
 function stepBy(direction) {
@@ -644,7 +683,6 @@ function stepBy(direction) {
     const history = job.buildNotes ||= [];
     const entry = { after: job.log.length, number: (history.at(-1)?.number || 0) + 1 };
     history.push(entry);
-    if (history.length > NOTE_HISTORY_LIMIT) history.shift();
     show(buildNoteStep(entry, buildNotesFor(job)), direction);
   }
 }
@@ -702,10 +740,12 @@ function restore() {
   };
   if (!job.live && ['planning', 'building'].includes(job.stage)) job.stage = 'scoping';
   const flow = steps();
+  const savedNote = job.buildNotes?.find(note => 'build-note-' + note.number === job.step);
   const resumed = flow.find(step => step.id === job.step)
-    || (job.step?.startsWith('blueprint-') && flow.findLast(step => step.phase === 'blueprint'));
+    || (job.step?.startsWith('blueprint-') && flow.findLast(step => step.phase === 'blueprint'))
+    || (savedNote && flow.find(step => step.id === (savedNote.after ? 'build-' + (savedNote.after - 1) : buildStart.id)));
   const fallback = job.failedAt === 'plan' ? flow.at(-1) : job.stage === 'planning' ? planStart
-    : job.stage === 'building' || job.stage === 'ready' ? buildStart : flow.find(step => step.phase === 'blueprint');
+    : job.failedAt === 'build' || job.stage === 'building' || job.stage === 'ready' ? buildStart : flow.find(step => step.phase === 'blueprint');
   show(resumed || fallback);
   if (job.live && ['planning', 'building'].includes(job.stage)) {
     const phase = job.stage === 'planning' ? 'plan' : 'build';
