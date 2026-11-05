@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="48 6 435 365">
+  <g transform="matrix(.90 .095 .045 .94 2 2)" stroke-linejoin="round">
+    <rect x="112" y="66" width="381" height="255" rx="3" fill="#241b39" stroke="#8874ba"/>
+    <rect x="97" y="46" width="381" height="255" rx="3" fill="#2f2449" stroke="#a18bd5"/>
+    <rect x="82" y="26" width="381" height="255" rx="3" fill="#18172a" stroke="#c2aaff" stroke-width="1.4"/>
+    <path d="M82 54h381" stroke="#9380c6"/>
+    <rect x="200" y="36" width="135" height="8" fill="#32254e" stroke="#62558e"/>
+    <g fill="#bba6eb"><circle cx="99" cy="40" r="2.8"/><circle cx="110" cy="40" r="2.8"/><circle cx="121" cy="40" r="2.8"/></g>
+    <g fill="#292343" stroke="#7966ad">
+      <rect x="98" y="68" width="163" height="89"/><rect x="274" y="68" width="172" height="89" fill="#352853"/>
+      <rect x="98" y="188" width="108" height="66"/><rect x="218" y="188" width="108" height="66"/><rect x="338" y="188" width="108" height="66"/>
+    </g>
+    <path d="M290 68v89m22-89v89m22-89v89m22-89v89m22-89v89m22-89v89m22-89v89M274 90h172m-172 22h172m-172 22h172" fill="none" stroke="#69538e" opacity=".55"/>
+    <path d="m284 146 37-38 29 22 38-47 48 63" fill="none" stroke="#c7b4f2" stroke-width="1.5"/>
+    <circle cx="310" cy="89" r="6" fill="none" stroke="#a0eac9"/>
+    <path d="M109 86h41" stroke="#a0eac9" stroke-width="2"/>
+    <path d="M109 100h128m-128 13h95" stroke="#cfbafc" stroke-width="6"/>
+    <path d="M109 127h102m-113 46h75m-64 59h66m54 0h66m54 0h66" stroke="#9380c6" stroke-width="3"/>
+    <path d="M109 142h44" stroke="#aa91e5" stroke-width="8"/>
+    <path d="M109 203h9m111 0h9m111 0h9" stroke="#c4a9fa" stroke-width="9"/>
+    <path d="M109 242h41m79 0h41m79 0h41" stroke="#76639d" stroke-width="2"/>
+  </g>
+</svg>
