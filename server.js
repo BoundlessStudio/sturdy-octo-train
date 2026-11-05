@@ -7,7 +7,7 @@ import { extname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
-import { ASSET_HEADERS, TYPES, VENDOR_FILES } from './lib/assets.js';
+import { ASSET_HEADERS, TYPES, VENDOR_FILES, appDocument } from './lib/assets.js';
 import { handleBuilder } from './lib/builder.js';
 
 const env = process.env;
@@ -66,6 +66,10 @@ app.get('/vendor/licenses.txt', (_req, res) => {
   const licenses = ['three', '@fontsource-variable/inter', '@fontsource-variable/space-grotesk']
     .map(name => name + '\n' + readFileSync(join(root, 'node_modules', name, 'LICENSE'), 'utf8'));
   res.type('text').send(licenses.join('\n\n'));
+});
+app.get(['/', '/index.html'], (_req, res) => {
+  const page = appDocument(readFileSync(join(root, 'public', 'index.html'), 'utf8'));
+  res.set(page.headers).type('html').send(page.markup);
 });
 app.use(express.static(join(root, 'public')));
 

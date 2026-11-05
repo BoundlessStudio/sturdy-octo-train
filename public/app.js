@@ -1,4 +1,4 @@
-import { DECISIONS, EXAMPLES, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
+import { DECISIONS, EXAMPLES, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js?v=inline';
 import { makeDemo } from './demo.js';
 
 const byId = id => document.getElementById(id);
@@ -51,6 +51,7 @@ let job;
 let blueprint;
 let wireframe;
 let demoFile = '';
+let loadedPreview = '';
 let scrollQueued = false;
 let operation = false;
 let lastScrollY = window.scrollY;
@@ -444,15 +445,34 @@ function renderPreview() {
   byId('preview-summary').textContent = summary + '. Try your first release in the frame below.';
   actions.replaceChildren(button('New brief', 'button quiet', reset));
   if (job.live) {
-    const path = buildPath('/preview/');
-    frame.removeAttribute('srcdoc');
-    if (frame.getAttribute('src') !== path) frame.src = path;
+    void loadPreview(frame);
     actions.append(button('Delete sandbox', 'text-button danger', discard));
   } else {
     demoFile = makeDemo(job.idea, job.plan, scope);
     frame.removeAttribute('src');
     if (frame.srcdoc !== demoFile) frame.srcdoc = demoFile;
     actions.append(button('Download HTML', 'button quiet', downloadDemo));
+  }
+}
+
+async function loadPreview(frame) {
+  const path = buildPath('/preview/');
+  if (loadedPreview === path) return;
+  loadedPreview = path;
+  const current = job;
+  showFeedback('Loading the verified site…');
+  try {
+    const response = await api(path);
+    const html = await response.text();
+    const nonce = byId('app-entry').nonce;
+    if (!nonce) throw new Error('Refresh Scrollworks to load the inline preview.');
+    if (job !== current) return;
+    frame.srcdoc = html.replaceAll('__SCROLLWORKS_PREVIEW_NONCE__', nonce);
+    showFeedback();
+  } catch (error) {
+    if (job !== current) return;
+    loadedPreview = '';
+    showFeedback(error.message);
   }
 }
 
@@ -680,6 +700,7 @@ function reset() {
   if (operation) return;
   job = null;
   demoFile = '';
+  loadedPreview = '';
   blueprintStep = -1;
   scopeStep = -1;
   scopeSeen = 0;
@@ -768,7 +789,7 @@ for (const control of rail) {
 }
 window.addEventListener('scroll', queueScroll, { passive: true });
 window.addEventListener('resize', queueScroll);
-import('./wireframe.js').then(module => {
+import('./wireframe.js?v=inline').then(module => {
   wireframe = module;
   wireframe.mountWireframe(byId('hero-model'), 'landing', 1);
   if (job) updatePlan();
