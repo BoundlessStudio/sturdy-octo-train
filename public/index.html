@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0c0d16">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#10110d">
   <meta name="description" content="Write an idea and scroll through every step of its build.">
   <title>Scrollworks — Build while you scroll</title>
-  <link rel="icon" href="/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=reader">
-  <script id="app-entry" type="module" src="/app.js?v=reader"></script>
+  <link rel="icon" href="/mark.svg?v=paper" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css?v=paper">
+  <script id="app-entry" type="module" src="/app.js?v=paper"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -16,99 +16,98 @@
       <div class="reader-screen">
         <header class="masthead">
           <div class="shell masthead-inner">
-            <div class="brand"><img src="/mark.svg" width="23" height="23" alt="">Scrollworks</div>
+            <div class="brand"><img src="/mark.svg?v=paper" width="22" height="22" alt="">Scrollworks</div>
             <span class="mode" id="mode"><i aria-hidden="true"></i><span>Connecting</span></span>
           </div>
         </header>
-        <div class="stage-viewport" id="stage-viewport">
-          <section class="pane idea-pane" id="idea-pane" aria-labelledby="idea-title">
-            <div class="shell idea-content">
-              <h1 id="idea-title"><label for="idea">What do you want to build?</label></h1>
-              <div class="idea-field">
-                <textarea id="idea" maxlength="500" minlength="8" rows="3" placeholder="Describe your site…" aria-describedby="idea-feedback"></textarea>
-                <div class="idea-meta">
-                  <p id="idea-feedback" role="status"></p>
-                  <span class="mono" id="idea-count">0 / 500</span>
+        <div class="workbench shell" id="workbench" data-phase="idea">
+          <div class="stage-viewport" id="stage-viewport">
+            <section class="pane idea-pane" id="idea-pane" aria-labelledby="idea-title">
+              <div class="step-content">
+                <p class="eyebrow">01 / THE BRIEF</p>
+                <h1 id="idea-title"><label for="idea">What should<br> we build?</label></h1>
+                <div class="idea-field">
+                  <textarea id="idea" maxlength="500" minlength="8" rows="3" placeholder="Describe the site you have in mind…" aria-describedby="idea-feedback"></textarea>
+                  <div class="idea-meta">
+                    <p id="idea-feedback" role="status"></p>
+                    <span class="mono" id="idea-count">0 / 500</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="pane" id="feed-pane" aria-labelledby="feed-title" hidden>
-            <div class="shell split">
-              <div class="step-copy">
-                <p class="eyebrow"><span class="signal"></span> <span id="feed-label">SANDBOX UPDATE</span></p>
+            <section class="pane" id="feed-pane" aria-labelledby="feed-title" hidden>
+              <div class="step-content">
+                <p class="eyebrow"><span id="feed-label">SANDBOX UPDATE</span><span id="feed-index"></span></p>
                 <h2 id="feed-title"></h2>
-                <p class="step-caption" id="feed-detail"></p>
-              </div>
-              <aside class="instrument" aria-labelledby="guide-title">
-                <div class="instrument-bar"><span><i class="signal"></i> FIELD NOTES</span><span id="feed-index"></span></div>
-                <div class="field-note">
+                <p class="step-caption brief-quote" id="feed-detail"></p>
+                <aside class="field-note" aria-labelledby="guide-title">
+                  <p class="mono note-label">FIELD NOTES</p>
                   <h3 id="guide-title"></h3>
                   <p id="guide-copy"></p>
                   <div class="utility-actions" id="feed-actions" hidden></div>
                   <p class="feedback" id="feed-feedback" role="status" hidden></p>
-                </div>
-              </aside>
-            </div>
-          </section>
+                </aside>
+              </div>
+            </section>
 
-          <section class="pane" id="blueprint-pane" aria-labelledby="blueprint-title" hidden>
-            <div class="shell split blueprint-split">
-              <div class="step-copy">
-                <p class="eyebrow"><span class="signal"></span> <span id="blueprint-index"></span></p>
+            <section class="pane" id="blueprint-pane" aria-labelledby="blueprint-title" hidden>
+              <div class="step-content">
+                <p class="eyebrow" id="blueprint-index"></p>
                 <h2 id="blueprint-title"></h2>
                 <p class="step-caption" id="blueprint-copy"></p>
-                <div class="surfaces" id="surfaces" aria-label="Planned screens"></div>
+                <ul class="blocks" id="blueprint-blocks" aria-label="Parts of this screen"></ul>
               </div>
-              <div class="blueprint-display">
-                <div class="model-panel" id="blueprint-model" data-fill="0">
-                  <div class="instrument-bar"><span><i class="signal"></i> WIREFRAME</span><span id="model-name"></span></div>
-                  <div class="viewport" aria-hidden="true"><div class="model-fallback"></div></div>
-                  <div class="model-bottom"><span>Frame</span><span>Content</span><span>Detail</span></div>
-                </div>
-              </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="pane" id="feature-pane" aria-labelledby="feature-title" hidden>
-            <div class="shell split">
-              <div class="step-copy">
-                <p class="eyebrow"><span class="signal"></span> FEATURE REVIEW</p>
-                <h2 id="feature-title">Choose what goes in.</h2>
-                <p class="step-caption" id="feature-help">Pick Keep, Later, or Never. The next scroll saves your choice and shows one more card.</p>
-              </div>
-              <div class="instrument">
-                <div class="instrument-bar"><span><i class="signal"></i> FEATURE CARD</span><span id="feature-index"></span></div>
+            <section class="pane" id="feature-pane" aria-labelledby="feature-title" hidden>
+              <div class="step-content">
+                <p class="eyebrow"><span>FEATURE REVIEW</span><span id="feature-index"></span></p>
+                <h2 id="feature-title">What goes into v1?</h2>
+                <p class="step-caption" id="feature-help"></p>
                 <div id="feature-card" class="feature-card"></div>
               </div>
-            </div>
-          </section>
+            </section>
 
-          <section class="pane" id="recap-pane" aria-labelledby="recap-title" hidden>
-            <div class="shell recap">
-              <p class="eyebrow"><span class="signal"></span> SCOPE CHECKPOINT</p>
-              <h2 id="recap-title">Review your first release.</h2>
-              <p class="step-caption" id="recap-copy"></p>
-              <div class="scope-list" id="scope-list"></div>
-            </div>
-          </section>
+            <section class="pane" id="recap-pane" aria-labelledby="recap-title" hidden>
+              <div class="step-content">
+                <p class="eyebrow">SCOPE CHECKPOINT</p>
+                <h2 id="recap-title">Your first release.</h2>
+                <p class="step-caption" id="recap-copy"></p>
+                <div class="scope-list" id="scope-list"></div>
+              </div>
+            </section>
 
-          <section class="pane preview-pane" id="preview-pane" aria-labelledby="preview-title" hidden>
-            <div class="shell preview-content">
-              <div>
-                <p class="eyebrow"><span class="signal"></span> FINAL STEP</p>
-                <h2 id="preview-title">Your site is here.</h2>
-                <p class="step-caption" id="preview-summary"></p>
+            <section class="pane preview-pane" id="preview-pane" aria-labelledby="preview-title" hidden>
+              <div class="step-content preview-content">
+                <div>
+                  <p class="eyebrow">FINAL STEP</p>
+                  <h2 id="preview-title">Your site is ready.</h2>
+                  <p class="step-caption" id="preview-summary"></p>
+                </div>
+                <div class="preview-window">
+                  <div class="instrument-bar"><span id="preview-name">PRIVATE PREVIEW</span><span>LIVE PREVIEW</span></div>
+                  <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+                </div>
+                <p id="preview-feedback" class="feedback" role="status" hidden></p>
+                <div class="utility-actions" id="preview-actions"></div>
               </div>
-              <div class="instrument preview-window">
-                <div class="instrument-bar"><span><i class="signal"></i> <span id="preview-name">PRIVATE PREVIEW</span></span><span>INLINE</span></div>
-                <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+            </section>
+          </div>
+
+          <figure class="model-panel" id="blueprint-model" aria-labelledby="model-caption">
+            <div class="viewport" aria-hidden="true">
+              <div class="model-fallback">
+                <p class="paper-kicker">SCROLLWORKS / SKETCHPAD</p>
+                <p class="paper-title">Untitled idea</p>
+                <div class="paper-screens"></div>
               </div>
-              <p id="preview-feedback" class="feedback" role="status" hidden></p>
-              <div class="utility-actions" id="preview-actions"></div>
             </div>
-          </section>
+            <figcaption class="model-caption mono" id="model-caption">
+              <span id="model-name">LIVE SKETCH</span>
+              <span id="model-detail">UPDATES AS YOU TYPE</span>
+            </figcaption>
+          </figure>
         </div>
 
         <footer class="reader-footer">

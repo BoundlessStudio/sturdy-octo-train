@@ -1,27 +1,23 @@
-import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js?v=reader';
+import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
 import { makeDemo } from './demo.js';
-import { attachReader } from './reader.js?v=reader';
+import { attachReader } from './reader.js?v=paper';
 
 const byId = id => document.getElementById(id);
 const reader = byId('reader');
 const viewport = byId('stage-viewport');
+const workbench = byId('workbench');
 const ideaInput = byId('idea');
 const model = byId('blueprint-model');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const sessionKey = 'scrollworks.active-build';
 const phaseNames = { idea: 'Idea', plan: 'Plan', blueprint: 'Blueprint', scope: 'Scope', build: 'Build', preview: 'Preview' };
 const decisionNames = { keep: 'Keep', later: 'Later', never: 'Never' };
-const decisionDetails = { keep: 'Build it now', later: 'Save it for another release', never: 'Leave it out' };
 const ideaStep = { id: 'idea', pane: 'idea', phase: 'idea' };
 const planStart = { id: 'plan-start', pane: 'feed', phase: 'plan', message: 'Your idea is in.' };
 const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
-const blueprintSteps = [
-  ['Frame', 'Lay out the screens.', 'Each sheet is a screen from your plan. Scrolling brings the sheets together into one blueprint.'],
-  ['Content', 'Put the blocks in place.', 'Each block represents a piece of your site, from navigation to a calendar or form.'],
-  ['Detail', 'See the proposed site.', 'The filled wireframe shows how your screens and blocks fit together. Next you’ll decide which features make the first release.'],
-];
+const PLAN_READY = 'Your blueprint plan is ready.';
 const notes = [
   [/requesting a dedicated/i, 'A separate workspace', 'Agent37 creates an isolated workspace for this idea. Hermes can build and check its files there.'],
   [/waiting for Hermes/i, 'Meet the builder', 'Hermes starts inside the workspace and receives your idea as its brief.'],
@@ -44,10 +40,6 @@ let disposing = false;
 let previewLoad;
 let demoFile = '';
 let wireframe;
-let wireframeModule;
-let attemptedWireframe = false;
-let modelProgress = 0;
-let modelAnimation = 0;
 
 function node(tag, text, className) {
   const element = document.createElement(tag);
@@ -88,7 +80,9 @@ function steps() {
   if (job.failedAt === 'plan') return [...flow, errorStep('plan')];
   if (job.stage === 'planning') return flow;
   flow.push(
-    ...blueprintSteps.map((_, index) => ({ id: 'blueprint-' + index, pane: 'blueprint', phase: 'blueprint', index })),
+    ...screensFor(job.plan, job.idea).map((screen, index, screens) => ({
+      id: 'blueprint-' + index, pane: 'blueprint', phase: 'blueprint', index, screen, total: screens.length,
+    })),
     ...job.plan.features.map((feature, index) => ({ id: 'feature-' + feature.id, pane: 'feature', phase: 'scope', feature, index })),
     recap,
   );
@@ -131,7 +125,7 @@ function cueFor(next) {
     if (next === preview) return ['next', 'Scroll down to open the preview'];
     if (next === recap) return ['next', 'Scroll down to review your choices'];
     if (next.pane === 'feature') return ['next', 'Scroll down to see the next feature'];
-    if (next.pane === 'blueprint') return ['next', 'Scroll down to reveal the ' + blueprintSteps[next.index][0].toLowerCase()];
+    if (next.pane === 'blueprint') return ['next', 'Scroll down to lift the next screen'];
     return ['next', 'Scroll down to read the next update'];
   }
   if (current === preview) return ['done', 'This is the final step'];
@@ -172,8 +166,8 @@ function show(step, direction = 0) {
     save();
   }
   const pane = byId(step.pane + '-pane');
+  workbench.dataset.phase = step.phase;
   for (const other of viewport.children) other.hidden = other !== pane;
-  if (step.pane !== 'blueprint') cancelAnimationFrame(modelAnimation);
   if (step === ideaStep) {
     ideaInput.readOnly = !!job;
     updateIdea();
@@ -188,6 +182,7 @@ function show(step, direction = 0) {
   } else if (step === preview) {
     renderPreview();
   }
+  if (step !== ideaStep) renderModel(step);
   viewport.scrollTop = 0;
   updateMode();
   updatePrompt();
@@ -197,10 +192,10 @@ function show(step, direction = 0) {
     if (!reducedMotion.matches) {
       const contents = pane.firstElementChild;
       contents.getAnimations().forEach(animation => animation.cancel());
-      contents.animate(
-        [{ opacity: .25, transform: 'translateY(' + direction * 18 + 'px)' }, { opacity: 1, transform: 'translateY(0)' }],
-        { duration: 280, easing: 'cubic-bezier(.2,.75,.3,1)' },
-      );
+      contents.animate([
+        { opacity: 0, transform: 'translateY(' + direction * 32 + 'px)', clipPath: 'inset(0 0 10% 0)' },
+        { opacity: 1, transform: 'translateY(0)', clipPath: 'inset(0 0 0 0)' },
+      ], { duration: 460, easing: 'cubic-bezier(.2,.75,.25,1)' });
     }
   }
 }
@@ -209,6 +204,7 @@ function updateIdea() {
   ideaInput.removeAttribute('aria-invalid');
   byId('idea-count').textContent = ideaInput.value.length + ' / ' + MAX_IDEA;
   byId('idea-feedback').textContent = job ? 'Idea already sent. Scroll down to reread the plan.' : '';
+  if (current === ideaStep) renderModel(current);
   updatePrompt();
 }
 
@@ -240,52 +236,45 @@ function renderFeed(step) {
   feedback('feed-feedback');
 }
 
-function renderBlueprint({ index }) {
-  const screens = screensFor(job.plan, job.idea);
-  const [label, title, description] = blueprintSteps[index];
-  const lead = screens[0];
-  byId('blueprint-index').textContent = 'BLUEPRINT / ' + (index + 1) + ' OF 3 / ' + label;
-  byId('blueprint-title').textContent = title;
-  byId('blueprint-copy').textContent = index === 1 && lead
-    ? lead.name + ' takes shape with ' + lead.blocks.map(block => block.label).join(', ') + '.'
-    : description;
-  byId('surfaces').replaceChildren(...screens.map(screen => node('span', screen.name)));
-  byId('model-name').textContent = job.plan.title;
-  model.dataset.fill = String(index);
-  for (const [position, stage] of [...model.querySelector('.model-bottom').children].entries()) {
-    if (position === index) stage.setAttribute('aria-current', 'step');
-    else stage.removeAttribute('aria-current');
-  }
-  const target = index / 2;
-  if (wireframeModule && !attemptedWireframe) {
-    attemptedWireframe = true;
-    wireframe = wireframeModule.mountWireframe(model, job.plan.layout, target);
-    modelProgress = target;
-  }
-  // Keep the same idea-specific screens available if the browser has no WebGL.
-  model.querySelector('.model-fallback').replaceChildren(...screens.map(screen => {
+function renderBlueprint({ index, screen, total }) {
+  byId('blueprint-index').textContent = 'BLUEPRINT / ' + (index + 1) + ' OF ' + total;
+  byId('blueprint-title').textContent = screen.name;
+  byId('blueprint-copy').textContent = index === 0
+    ? 'The first screen lifts out of your sketch. Here’s what belongs on it.'
+    : 'This screen connects to the rest of your site. Here’s what belongs on it.';
+  byId('blueprint-blocks').replaceChildren(...screen.blocks.map(block => node('li', block.label)));
+}
+
+function renderModel(step) {
+  model.hidden = step === preview;
+  if (model.hidden) return;
+  const idea = step === ideaStep ? ideaInput.value.trim() : job.idea;
+  const drafting = step === ideaStep || (step.phase === 'plan' && step.message !== PLAN_READY);
+  const plan = drafting ? draftPlan(idea) : job.plan;
+  const title = idea ? plan.title : 'Untitled idea';
+  const screens = idea ? screensFor(plan, idea) : [];
+  const focus = step.pane === 'blueprint' ? step.index : -1;
+  const open = focus >= 0 ? focus + 1 : step.phase === 'scope' || step.phase === 'build' ? screens.length : 0;
+  const detail = {
+    idea: job ? 'ORIGINAL SKETCH' : 'SKETCH / AS YOU TYPE',
+    plan: drafting ? 'DRAFT SKETCH' : 'PLAN READY',
+    blueprint: 'SCREEN ' + open + ' / ' + screens.length,
+    scope: 'FIRST RELEASE / SCOPE',
+    build: step.number ? 'SANDBOX / UPDATE ' + step.number : 'SANDBOX / BUILD',
+  }[step.phase];
+  byId('model-name').textContent = title;
+  byId('model-detail').textContent = detail;
+  model.querySelector('.paper-title').textContent = title;
+  model.querySelector('.paper-screens').replaceChildren(...screens.map((screen, index) => {
     const sheet = node('div', undefined, 'flat-screen');
+    sheet.dataset.raised = String(index < open);
     sheet.append(node('strong', screen.name));
     for (const block of screen.blocks) sheet.append(node('span', block.label, 'flat-block'));
     return sheet;
   }));
-  if (!wireframe) return;
-  wireframe.setPlan(job.plan.layout, screens);
-  cancelAnimationFrame(modelAnimation);
-  const origin = modelProgress;
-  if (origin === target || reducedMotion.matches) {
-    wireframe.setProgress(target);
-    modelProgress = target;
-    return;
-  }
-  const startedAt = performance.now();
-  function draw(now) {
-    const fraction = Math.min(1, (now - startedAt) / 400);
-    modelProgress = origin + (target - origin) * (1 - (1 - fraction) ** 3);
-    wireframe.setProgress(modelProgress);
-    if (fraction < 1) modelAnimation = requestAnimationFrame(draw);
-  }
-  modelAnimation = requestAnimationFrame(draw);
+  wireframe?.setSketch(title, screens);
+  const event = step.number || 0;
+  wireframe?.setView(open, focus, step.phase === 'plan' ? -event : step.phase === 'build' ? event : 0);
 }
 
 function renderFeature({ feature, index }) {
@@ -298,9 +287,12 @@ function renderFeature({ feature, index }) {
   const title = node('h3', feature.title);
   title.id = 'current-feature-title';
   const detail = node('p', feature.detail, 'feature-detail');
+  const note = node('div', undefined, 'feature-note');
+  note.append(title, detail);
   const choices = node('div', undefined, 'choices');
   choices.setAttribute('role', 'radiogroup');
   choices.setAttribute('aria-labelledby', title.id);
+  const committed = Object.values(job.choices);
   for (const decision of DECISIONS) {
     const label = node('label', undefined, 'choice');
     label.dataset.choice = decision;
@@ -315,10 +307,11 @@ function renderFeature({ feature, index }) {
       save();
       updatePrompt();
     });
-    label.append(radio, node('span', decisionNames[decision]), node('small', decisionDetails[decision]));
+    const sorted = committed.filter(choice => choice === decision).length;
+    label.append(radio, node('span', decisionNames[decision]), node('small', sorted + ' filed'));
     choices.append(label);
   }
-  card.replaceChildren(title, detail, choices);
+  card.replaceChildren(note, choices);
 }
 
 function renderRecap() {
@@ -404,7 +397,7 @@ function buildPath(suffix = '') {
 function completePlan(plan) {
   job.plan = plan;
   job.stage = 'scoping';
-  record('plan', 'Your blueprint plan is ready.');
+  record('plan', PLAN_READY);
   save();
 }
 
@@ -626,7 +619,8 @@ function restore() {
   };
   if (!job.live && job.stage === 'building') job.stage = 'scoping';
   const flow = steps();
-  const resumed = flow.find(step => step.id === job.step);
+  const resumed = flow.find(step => step.id === job.step)
+    || (job.step?.startsWith('blueprint-') && flow.findLast(step => step.phase === 'blueprint'));
   show(resumed || (job.stage === 'building' || job.stage === 'ready' ? buildStart : planStart));
   if (job.live && ['planning', 'building'].includes(job.stage)) {
     const phase = job.stage === 'planning' ? 'plan' : 'build';
@@ -642,10 +636,12 @@ const configuration = fetch('/api/config', { signal: AbortSignal.timeout(8000) }
 
 ideaInput.addEventListener('input', updateIdea);
 history.scrollRestoration = 'manual';
-attachReader(reader, viewport, stepBy);
+attachReader(reader, viewport, stepBy, pull => {
+  if (!reducedMotion.matches && !model.hidden) wireframe?.setPull(pull);
+});
 restore();
 updateIdea();
-import('./wireframe.js?v=reader').then(module => {
-  wireframeModule = module;
-  if (current.pane === 'blueprint') renderBlueprint(current);
+import('./wireframe.js?v=paper').then(({ mountWireframe }) => {
+  wireframe = mountWireframe(model, reducedMotion);
+  renderModel(current);
 }).catch(() => {});

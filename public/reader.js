@@ -1,9 +1,9 @@
-const STEP_THRESHOLD = 18;
+const STEP_THRESHOLD = 32;
 const GESTURE_IDLE_MS = 220;
 
 // Only one screen is mounted in the scrollport. A short native scroll range
 // absorbs the rest of a wheel burst or swipe after it has delivered one step.
-export function attachReader(reader, content, onStep) {
+export function attachReader(reader, content, onStep, onPull) {
   let consumed = false;
   let touching = false;
   let settleTimer;
@@ -11,8 +11,11 @@ export function attachReader(reader, content, onStep) {
   const limit = () => reader.scrollHeight - reader.clientHeight;
   const center = () => Math.round(limit() / 2);
   function showStroke(distance, committed = false) {
-    reader.style.setProperty('--pull', (committed ? 0 : -distance * .42) + 'px');
-    reader.style.setProperty('--charge', Math.min(1, Math.abs(distance) / STEP_THRESHOLD));
+    const progress = Math.min(1, Math.abs(distance) / STEP_THRESHOLD);
+    const pull = committed ? 0 : Math.sign(distance) * progress;
+    reader.style.setProperty('--pull', -pull * 18 + 'px');
+    reader.style.setProperty('--charge', progress);
+    onPull(pull);
   }
 
   function settle() {
@@ -28,7 +31,10 @@ export function attachReader(reader, content, onStep) {
   reader.scrollTop = center();
   reader.addEventListener('scroll', () => {
     const distance = reader.scrollTop - center();
-    if (Math.abs(distance) < 1) return;
+    if (Math.abs(distance) < 1) {
+      if (!consumed) showStroke(0);
+      return;
+    }
     showStroke(distance, consumed || Math.abs(distance) >= STEP_THRESHOLD);
     if (!consumed && Math.abs(distance) >= STEP_THRESHOLD) {
       consumed = true;

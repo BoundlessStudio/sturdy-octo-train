@@ -1,10 +1,185 @@
 import * as THREE from '/vendor/three.module.js';
 
-const ink = '#c2aaff';
-const soft = '#9280c7';
-const mint = '#8be7ca';
+const paper = '#d0f64f';
+const ink = '#242c13';
+const chalk = '#f1f2e9';
+const padWidth = 9.4;
+const padDepth = 6.7;
+const padTop = .11;
+const places = [
+  { x: .12, z: .42, width: 4.08, height: 2.56 },
+  { x: -3.24, z: .72, width: 1.75, height: 2.86 },
+  { x: 3.20, z: 1.02, width: 1.86, height: 2.06 },
+];
+const opening = [7.7, 13.2, 13.4, 0, 0];
 
-export function mountWireframe(panel, layout, progress) {
+function canvasTexture(width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const map = new THREE.CanvasTexture(canvas);
+  map.colorSpace = THREE.SRGBColorSpace;
+  return { ctx: canvas.getContext('2d'), map };
+}
+
+function stroke(ctx, points, color, width = 2) {
+  ctx.beginPath();
+  ctx.moveTo(...points[0]);
+  for (const point of points.slice(1)) ctx.lineTo(...point);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}
+
+function drawPad(ctx, title, count) {
+  ctx.fillStyle = paper;
+  ctx.fillRect(0, 0, 1400, 1000);
+  for (let x = 34; x < 1400; x += 38) stroke(ctx, [[x, 0], [x, 1000]], '#536a241b', 1);
+  for (let y = 34; y < 1000; y += 38) stroke(ctx, [[0, y], [1400, y]], '#536a241b', 1);
+  ctx.strokeStyle = '#596f2d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(31, 31, 1338, 938);
+  ctx.fillStyle = ink;
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText('SCROLLWORKS  /  DESIGN PAD', 63, 77);
+  ctx.font = '20px monospace';
+  ctx.fillText('FIG. 01', 1220, 77);
+
+  stroke(ctx, [[65, 707], [432, 707], [476, 672], [805, 672], [842, 706], [1335, 706]], '#5b7131', 3);
+  stroke(ctx, [[1150, 826], [1280, 826], [1315, 789]], '#5b7131', 3);
+  ctx.strokeRect(1103, 805, 46, 46);
+  ctx.strokeRect(1168, 862, 124, 62);
+  ctx.font = '22px monospace';
+  ctx.fillText('V1', 1208, 900);
+
+  if (!count) {
+    ctx.setLineDash([11, 9]);
+    ctx.strokeRect(407, 166, 586, 389);
+    ctx.strokeRect(130, 248, 212, 355);
+    ctx.strokeRect(1053, 285, 222, 291);
+    ctx.setLineDash([]);
+    stroke(ctx, [[458, 334], [693, 334], [693, 445], [458, 445], [458, 334], [693, 445]], '#71893c');
+    stroke(ctx, [[739, 342], [932, 342]], '#71893c');
+    stroke(ctx, [[739, 381], [900, 381]], '#71893c');
+    stroke(ctx, [[739, 421], [852, 421]], '#71893c');
+    ctx.font = '21px monospace';
+    ctx.fillText('SCREENS GO HERE', 451, 225);
+  }
+
+  ctx.font = 'italic bold 84px Georgia, serif';
+  const rows = [''];
+  for (const word of title.split(/\s+/)) {
+    const last = rows.length - 1;
+    const joined = rows[last] ? rows[last] + ' ' + word : word;
+    if (rows[last] && rows.length === 1 && ctx.measureText(joined).width > 1000) rows.push(word);
+    else rows[last] = joined;
+  }
+  for (const [index, row] of rows.entries()) ctx.fillText(row, 64, 817 + index * 87, 1000);
+  const finalWidth = Math.min(990, ctx.measureText(rows.at(-1)).width);
+  const lineY = 839 + (rows.length - 1) * 87;
+  stroke(ctx, [[70, lineY], [68 + finalWidth * .56, lineY - 7], [70 + finalWidth, lineY - 3]], ink, 4);
+}
+
+function drawBlock(ctx, kind, x, y, width, height, draft) {
+  const fg = draft ? '#4f6328' : '#a2c340';
+  const muted = draft ? '#819644' : '#3a3e30';
+  const line = (x1, y1, x2, y2, color = fg) => {
+    stroke(ctx, [[x + width * x1, y + height * y1], [x + width * x2, y + height * y2]], color, 3);
+  };
+  const tile = (tx, ty, w, h, emphasis = false) => {
+    const rect = [x + width * tx, y + height * ty, width * w, height * h];
+    ctx.strokeStyle = emphasis ? fg : muted;
+    ctx.lineWidth = 2;
+    if (!draft) {
+      ctx.fillStyle = emphasis ? '#3c4a21' : '#272b22';
+      ctx.fillRect(...rect);
+    }
+    ctx.strokeRect(...rect);
+  };
+  switch (kind) {
+    case 'calendar':
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 7; col++) tile(col / 7, row * .325, .12, .25, (row + col) % 6 === 3);
+      }
+      break;
+    case 'chart':
+      for (const gy of [.17, .48, .82]) line(0, gy, 1, gy, muted);
+      stroke(ctx, [[x, y + height * .86], [x + width * .26, y + height * .58], [x + width * .46, y + height * .68],
+        [x + width * .69, y + height * .32], [x + width * .83, y + height * .45], [x + width, y + height * .06]], fg, 4);
+      break;
+    case 'list':
+      for (const ly of [.16, .48, .8]) {
+        tile(0, ly - .09, .065, .18, true);
+        line(.12, ly, .65, ly);
+        line(.77, ly, .99, ly, muted);
+      }
+      break;
+    case 'form':
+      tile(0, .02, 1, .21);
+      tile(0, .34, 1, .21);
+      tile(0, .67, .34, .26, true);
+      break;
+    case 'grid':
+      for (const lx of [0, .345, .69]) {
+        tile(lx, .02, .30, .60, lx === 0);
+        line(lx, .82, lx + .22, .82);
+        if (draft) line(lx, .02, lx + .30, .62, muted);
+      }
+      break;
+    default:
+      line(0, .16, .36, .16);
+      line(0, .37, .27, .37, muted);
+      tile(0, .62, .29, .24, true);
+      tile(.52, .02, .48, .9);
+      if (draft) {
+        line(.52, .02, 1, .92, muted);
+        line(1, .02, .52, .92, muted);
+      }
+  }
+}
+
+function drawScreen(ctx, screen, width, height, draft) {
+  const body = draft ? paper : '#191c16';
+  const border = draft ? '#647932' : '#4f5840';
+  ctx.fillStyle = body;
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = border;
+  ctx.lineWidth = draft ? 4 : 8;
+  ctx.strokeRect(7, 7, width - 14, height - 14);
+
+  const side = 30;
+  const head = 58;
+  const content = width - side * 2;
+  ctx.fillStyle = draft ? '#c3e747' : '#25291f';
+  ctx.fillRect(11, 11, width - 22, head);
+  for (let index = 0; index < 3; index++) {
+    ctx.beginPath();
+    ctx.arc(side + index * 17, 39, 4, 0, Math.PI * 2);
+    ctx.fillStyle = index === 0 && !draft ? paper : border;
+    ctx.fill();
+  }
+  ctx.fillStyle = draft ? ink : chalk;
+  ctx.font = 'bold 41px system-ui, sans-serif';
+  ctx.fillText(screen.name, side, head + 56, content);
+  const top = head + 85;
+  const gap = 12;
+  const rows = Math.max(1, screen.blocks.length);
+  const row = (height - top - side - (rows - 1) * gap) / rows;
+  for (const [index, block] of screen.blocks.entries()) {
+    const y = top + index * (row + gap);
+    ctx.fillStyle = draft ? '#c6e84b' : '#22261d';
+    ctx.fillRect(side, y, content, row);
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(side, y, content, row);
+    ctx.fillStyle = draft ? ink : chalk;
+    ctx.font = '600 23px system-ui, sans-serif';
+    ctx.fillText(block.label, side + 14, y + 30, content - 28);
+    drawBlock(ctx, block.kind, side + 16, y + 45, content - 32, Math.max(15, row - 58), draft);
+  }
+}
+
+export function mountWireframe(panel, reducedMotion) {
   const viewport = panel.querySelector('.viewport');
   let renderer;
   try {
@@ -12,258 +187,93 @@ export function mountWireframe(panel, layout, progress) {
   } catch {
     return null;
   }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
 
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  viewport.append(renderer.domElement);
-  panel.classList.add('has-webgl');
   const scene = new THREE.Scene();
-  const camera = new THREE.OrthographicCamera(-5, 5, 3.4, -3.4, 0.1, 50);
-  const deck = new THREE.Group();
-  scene.add(deck);
-  let fades = [];
+  const camera = new THREE.PerspectiveCamera(35, 1, .1, 65);
+  const stage = new THREE.Group();
+  scene.add(stage);
+  const pad = canvasTexture(1400, 1000);
+  const face = new THREE.MeshBasicMaterial({ map: pad.map });
+  const edge = new THREE.MeshBasicMaterial({ color: '#789632' });
+  const bottom = new THREE.MeshBasicMaterial({ color: '#5d752c' });
+  stage.add(new THREE.Mesh(new THREE.BoxGeometry(padWidth, padTop * 2, padDepth), [edge, edge, face, bottom, edge, edge]));
+  const pieces = new THREE.Group();
+  stage.add(pieces);
+
   let screens = [];
-  let planSignature = '';
-  let spread = 0;
+  let title = '';
+  let signature = '';
+  let view = [0, ...opening];
+  let destination = view;
+  let pull = 0;
+  let frame = 0;
   let lastWidth = 0;
   let lastHeight = 0;
+  let lastFov = 0;
+  let lost = false;
 
-  function box(parent, x, y, width, height, options = {}) {
-    const { fill, edge, z = 0, layer = 0, alpha = 1 } = options;
-    if (fill) {
-      const material = new THREE.MeshBasicMaterial({
-        color: fill,
-        opacity: alpha,
-        transparent: layer > 0 || alpha < 1,
-        depthWrite: layer === 0,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material);
-      mesh.position.set(x, y, z);
-      if (layer) mesh.renderOrder = layer * 10 + z * 100;
-      parent.add(mesh);
-      if (layer) fades.push({ material, layer, alpha, floor: 0 });
-    }
-    if (edge) {
-      line(parent, x, y, [
-        [-width / 2, -height / 2], [width / 2, -height / 2],
-        [width / 2, height / 2], [-width / 2, height / 2], [-width / 2, -height / 2],
-      ], edge, z + .003, layer, alpha);
-    }
-  }
+  function device(screen, index) {
+    const { x, z, width, height } = places[index];
+    const pivot = new THREE.Group();
+    pivot.position.set(x, padTop + .015, z);
+    pieces.add(pivot);
+    const cast = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({
+      color: '#303b19', transparent: true, depthWrite: false,
+    }));
+    cast.rotation.x = -Math.PI / 2;
+    cast.position.set(x + .15, padTop + .008, z - .27);
+    pieces.add(cast);
 
-  function line(parent, x, y, points, color, z = .01, layer = 0, alpha = 1) {
-    const geometry = new THREE.BufferGeometry().setFromPoints(points.map(([px, py]) => new THREE.Vector3(px, py, 0)));
-    const material = new THREE.LineBasicMaterial({ color, opacity: alpha, transparent: alpha < 1 || layer > 0, depthWrite: false });
-    const stroke = new THREE.Line(geometry, material);
-    stroke.position.set(x, y, z);
-    if (layer) stroke.renderOrder = layer * 10 + z * 100;
-    parent.add(stroke);
-    if (layer) fades.push({ material, layer, alpha, floor: .23 });
-  }
-
-  function bar(parent, left, y, width, color, layer = 1, height = .045) {
-    box(parent, left + width / 2, y, width, height, { fill: color, layer, z: .045 });
-  }
-
-  function makeLayer(x, y, z, tint) {
-    const page = new THREE.Group();
-    page.position.set(x, y, z);
-    deck.add(page);
-    box(page, 0, 0, 7, 4.42, { fill: tint, edge: soft, z: -.01 });
-    box(page, 0, 0, 6.83, 4.25, { edge: '#554c80', alpha: .58 });
-    line(page, 0, 1.73, [[-3.48, 0], [3.48, 0]], '#8373bb', .012, 0, .78);
-    for (let i = 0; i < 3; i++) {
-      const dot = new THREE.Mesh(new THREE.CircleGeometry(.045, 12), new THREE.MeshBasicMaterial({
-        color: [ink, soft, '#61558d'][i],
-      }));
-      dot.position.set(-3.16 + i * .18, 1.98, .02);
-      page.add(dot);
-    }
-    box(page, 0, 1.97, 2.8, .16, { fill: '#292143', edge: '#5d4e89', z: .02 });
-    return page;
-  }
-
-  function picture(parent, x, y, width, height) {
-    box(parent, x, y, width, height, { fill: '#32254e', edge: '#aa91e5', layer: 1, z: .026 });
-    const half = width / 2;
-    for (let i = 0; i < 7; i++) {
-      const tick = -half + width * (i + 1) / 8;
-      line(parent, x + tick, y, [[0, -height / 2], [0, height / 2]], '#8a70bf', .031, 2, .28);
-    }
-    for (let i = 1; i < 4; i++) {
-      const tick = -height / 2 + height * i / 4;
-      line(parent, x, y + tick, [[-half, 0], [half, 0]], '#8a70bf', .031, 2, .28);
-    }
-    line(parent, x, y, [[-.42 * width, -.32 * height], [-.15 * width, .16 * height], [.02 * width, -.08 * height],
-      [.18 * width, .28 * height], [.4 * width, -.32 * height]], ink, .042, 2, .95);
-    const circle = Array.from({ length: 21 }, (_, i) => {
-      const angle = Math.PI * i / 10;
-      return [Math.cos(angle) * .096, Math.sin(angle) * .096];
-    });
-    line(parent, x - .22 * width, y + .23 * height, circle, mint, .042, 2, .95);
-  }
-
-  function tile(parent, x, y, width, height, detail = true) {
-    box(parent, x, y, width, height, { fill: '#23203b', edge: '#8271b5', layer: 1, z: .02 });
-    const left = x - width / 2 + .14;
-    if (detail) {
-      box(parent, left + .085, y + height / 2 - .19, .17, .17, { fill: '#7563ab', edge: ink, layer: 2, z: .04 });
-      bar(parent, left, y - .04, width * .62, '#b4a0e8', 2);
-      bar(parent, left, y - .20, width * .42, '#7e70a9', 2, .03);
-    }
-  }
-
-  function landing(page) {
-    box(page, -1.63, .73, 3.08, 1.45, { edge: '#62558e', layer: 1, z: .027, alpha: .77 });
-    bar(page, -3, 1.16, .78, mint, 2, .035);
-    bar(page, -3, .87, 2.42, '#e6d8ff', 1, .105);
-    bar(page, -3, .62, 1.75, ink, 1, .095);
-    bar(page, -3, .38, 2.03, soft, 2, .042);
-    box(page, -2.58, .115, .84, .18, { fill: '#9b85df', edge: '#bca7f5', layer: 2, z: .046 });
-    picture(page, 1.61, .73, 3.14, 1.45);
-    bar(page, -3.16, -.36, 1.34, '#cbb7f8', 2);
-    for (let i = 0; i < 3; i++) tile(page, -2.16 + i * 2.16, -1.17, 1.99, 1.08);
-  }
-
-  function catalog(page) {
-    bar(page, -3.18, 1.29, 2.26, '#e6d8ff', 1, .10);
-    bar(page, -3.18, 1.04, 1.62, soft, 2);
-    for (let i = 0; i < 4; i++) {
-      box(page, -2.83 + i * .82, .66, .7, .23, { fill: '#3b315d', edge: '#9b86d3', layer: 2, z: .026 });
-    }
-    for (let i = 0; i < 3; i++) {
-      const x = -2.16 + i * 2.16;
-      tile(page, x, -.67, 1.99, 1.87, false);
-      picture(page, x, -.39, 1.69, 1.06);
-      bar(page, x - .84, -1.08, 1.23, ink, 2, .06);
-      bar(page, x - .84, -1.3, .49, mint, 2);
-    }
-  }
-
-  function dashboard(page) {
-    box(page, -2.57, -.14, 1.27, 3.13, { fill: '#241f3d', edge: '#8373bb', layer: 1, z: .024 });
-    for (let i = 0; i < 5; i++) bar(page, -3.04, 1.13 - i * .37, i % 2 ? .60 : .83, i ? soft : mint, 2);
-    bar(page, -1.68, 1.22, 1.8, '#e6d8ff', 1, .10);
-    for (let i = 0; i < 3; i++) tile(page, -.97 + i * 1.73, .39, 1.52, .86);
-    box(page, .74, -.98, 4.95, 1.47, { fill: '#292344', edge: '#9b86d3', layer: 1, z: .025 });
-    const points = [[-2, -.34], [-1.35, -.04], [-.69, -.14], [-.12, .16], [.52, .05], [1.23, .36], [1.97, .48]];
-    for (let i = 0; i < 3; i++) {
-      line(page, .74, -1.39 + i * .34, [[-2.19, 0], [2.19, 0]], '#5a4a83', .032, 2);
-    }
-    line(page, .74, -1.02, points, mint, .04, 2);
-  }
-
-  function drawLabel(parent, value, left, y, width) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 400;
-    canvas.height = 48;
-    const context = canvas.getContext('2d');
-    if (!context) return;
-    context.font = '600 28px monospace';
-    context.fillStyle = '#e1d4ff';
-    context.textBaseline = 'middle';
-    context.fillText(value, 2, 24, 396);
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, width * 48 / 400), material);
-    mesh.position.set(left + width / 2, y, .075);
-    mesh.renderOrder = 30;
-    parent.add(mesh);
-    fades.push({ material, layer: 2, alpha: 1, floor: 0 });
-  }
-
-  function plannedBlock(page, block, x, y, width, height) {
-    const area = (px, py, w, h, tint = '#483765', edge = soft) => box(
-      page, x + px * width, y + py * height, width * w, height * h,
-      { fill: tint, edge, z: .039, layer: 2 },
-    );
-    box(page, x, y, width, height, { fill: '#27203e', edge: soft, z: .025, layer: 1 });
-    drawLabel(page, block.label, x - width * .44, y + height * .33, Math.min(width * .88, 2.15));
-    switch (block.kind) {
-      case 'grid':
-        for (const px of [-.28, 0, .28]) {
-          area(px, -.085, .236, .41);
-          area(px - .026, -.35, .14, .028, ink);
-        }
-        break;
-      case 'list':
-        for (const py of [.10, -.11, -.32]) {
-          area(-.36, py, .065, .09, mint);
-          area(-.025, py, .49, .033, ink);
-          area(.355, py, .10, .026, soft);
-        }
-        break;
-      case 'chart': {
-        const points = [[-.42, -.31], [-.27, -.13], [-.12, -.19], [.06, .08], [.21, -.02], [.39, .15]];
-        for (const py of [-.31, -.12, .07]) {
-          line(page, x, y + py * height, [[-.43 * width, 0], [.43 * width, 0]], soft, .042, 2, .55);
-        }
-        line(page, x, y, points.map(([px, py]) => [px * width, py * height]), mint, .052, 2);
-        break;
-      }
-      case 'form':
-        area(0, .09, .83, .12);
-        area(0, -.12, .83, .12);
-        area(-.255, -.32, .32, .11, '#8872c6', ink);
-        break;
-      case 'calendar':
-        for (let row = 0; row < 3; row++) {
-          for (let col = 0; col < 7; col++) {
-            const accent = (row + col) % 5 === 2;
-            area((col - 3) * .117, .11 - row * .19, .098, .135, accent ? '#476d6c' : '#42325e', accent ? mint : soft);
-          }
-        }
-        break;
-      default:
-        area(.218, -.115, .41, .49, '#493861');
-        area(-.25, .055, .35, .075, ink);
-        area(-.28, -.11, .29, .037, soft);
-        area(-.325, -.30, .21, .085, block.kind === 'hero' ? '#8872c6' : '#476d6c');
-        break;
-    }
-  }
-
-  function plannedScreen(page, screen) {
-    drawLabel(page, screen.name, .78, 1.97, 2);
-    const [primary, second, third] = screen.blocks;
-    if (!primary) return;
-    plannedBlock(page, primary, 0, second ? .70 : -.05, 6.37, second ? 1.62 : 3.12);
-    if (second) plannedBlock(page, second, third ? -1.63 : 0, -1.02, third ? 3.11 : 6.37, 1.49);
-    if (third) plannedBlock(page, third, 1.63, -1.02, 3.11, 1.49);
-  }
-
-  function rebuild(nextLayout, planned = []) {
-    deck.traverse(object => {
-      object.geometry?.dispose();
-      object.material?.map?.dispose();
-      object.material?.dispose();
-    });
-    deck.clear();
-    fades = [];
-    screens = ['#18172a', '#2f2449', '#241b39'].slice(0, planned.length || 3)
-      .map((tint, index) => makeLayer(index * .27, index * -.27, index * -.48, tint));
-    if (planned.length) {
-      screens.forEach((page, index) => plannedScreen(page, planned[index]));
-      panel.dataset.layout = nextLayout;
-      return;
-    }
-    const [front] = screens;
-    box(front, 0, -.18, 6.56, 3.55, { edge: '#574973', z: .018, alpha: .78 });
-    ({ landing, catalog, dashboard }[nextLayout] || landing)(front);
-    panel.dataset.layout = nextLayout;
+    const pixels = width > 2 ? 768 : 480;
+    const tall = Math.round(pixels * height / width);
+    const mock = canvasTexture(pixels, tall);
+    const sketch = canvasTexture(pixels, tall);
+    drawScreen(sketch.ctx, screen, pixels, tall, true);
+    drawScreen(mock.ctx, screen, pixels, tall, false);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(width + .035, height + .035, .085),
+      new THREE.MeshBasicMaterial({ color: '#21261b' }));
+    body.position.set(0, height / 2, -.029);
+    pivot.add(body);
+    const draft = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: sketch.map }));
+    draft.position.set(0, height / 2, .019);
+    pivot.add(draft);
+    const finished = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({
+      map: mock.map, transparent: true, depthWrite: false,
+    }));
+    finished.position.set(0, height / 2, .022);
+    pivot.add(finished);
+    return { pivot, body, cast, finished, draft };
   }
 
   function render() {
-    const width = viewport.clientWidth;
-    const height = viewport.clientHeight;
-    if (!width || !height) return;
+    const { clientWidth: width, clientHeight: height } = viewport;
+    if (lost || !width || !height) return;
+    const [open, x, y, z, lookX, lookY] = view;
+    for (const [index, { pivot, body, cast, finished, draft }] of screens.entries()) {
+      const raised = THREE.MathUtils.smoothstep(open - index, 0, 1);
+      pivot.rotation.x = -Math.PI / 2 + raised * (Math.PI / 2 - .09);
+      body.visible = raised > .08;
+      cast.material.opacity = raised * .24;
+      cast.scale.set(1, .28 + raised * .18, 1);
+      const filled = THREE.MathUtils.smoothstep(raised, .25, .95);
+      finished.material.opacity = filled;
+      finished.visible = filled > 0;
+      draft.visible = filled < 1;
+    }
+    stage.rotation.y = pull * -.085;
+    stage.rotation.z = pull * -.026;
+    camera.position.set(x - pull * .55, y - pull * .35, z);
+    camera.lookAt(lookX, lookY + pull * .1, -.12);
     const aspect = width / height;
-    const span = Math.max(5.9 + .55 * spread, (8.85 + .6 * spread) / aspect);
-    camera.left = -span * aspect / 2;
-    camera.right = span * aspect / 2;
-    camera.top = span / 2;
-    camera.bottom = -span / 2;
-    camera.updateProjectionMatrix();
+    const fit = Math.max(.87, (1.06 + .14 * Math.min(1, open)) / aspect);
+    const fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(35) / 2) * fit));
+    if (width !== lastWidth || height !== lastHeight || fov !== lastFov) {
+      camera.aspect = aspect;
+      camera.fov = fov;
+      camera.updateProjectionMatrix();
+      lastFov = fov;
+    }
     if (width !== lastWidth || height !== lastHeight) {
       renderer.setSize(width, height, false);
       lastWidth = width;
@@ -272,42 +282,74 @@ export function mountWireframe(panel, layout, progress) {
     renderer.render(scene, camera);
   }
 
-  function setProgress(next) {
-    progress = next;
-    spread = 1 - THREE.MathUtils.smoothstep(next, .02, .91);
-    screens[0].position.set(-.38 * spread, .25 * spread, .38 * spread);
-    screens[1]?.position.set(.27 + .29 * spread, -.27 - .18 * spread, -.48 - .66 * spread);
-    screens[2]?.position.set(.53 + .55 * spread, -.54 - .25 * spread, -.95 - 1.26 * spread);
-    deck.rotation.set(-.09 * spread, -.12 * spread, .105 * spread);
-    deck.scale.setScalar(1 - .075 * spread);
-    for (const { material, layer, alpha, floor } of fades) {
-      const start = layer === 1 ? .11 : .48;
-      const step = THREE.MathUtils.smoothstep(next, start, start + .36);
-      material.opacity = alpha * (floor + (1 - floor) * step);
-      material.visible = material.opacity > .001;
+  function setSketch(nextTitle, plan) {
+    const nextSignature = JSON.stringify(plan);
+    if (nextSignature !== signature) {
+      pieces.traverse(object => {
+        object.geometry?.dispose();
+        object.material?.map?.dispose();
+        object.material?.dispose();
+      });
+      pieces.clear();
+      screens = plan.slice(0, places.length).map(device);
+      signature = nextSignature;
+    } else if (title === nextTitle) {
+      return;
     }
-    camera.position.set(4.48 + 3.25 * spread, 3.87 + 1.75 * spread, 12.2);
-    camera.lookAt(.13 + .18 * spread, -.19 - .04 * spread, -.37 - .31 * spread);
+    title = nextTitle;
+    drawPad(pad.ctx, title, screens.length);
+    pad.map.needsUpdate = true;
     render();
   }
 
-  rebuild(layout);
-  setProgress(progress);
-  const resize = new ResizeObserver(render);
-  resize.observe(viewport);
-  renderer.domElement.addEventListener('webglcontextlost', () => panel.classList.remove('has-webgl'));
+  function setView(open, focus, event = 0) {
+    const drift = Math.sin(event * .83) * .9;
+    const spot = places[focus];
+    const target = spot
+      ? [open, spot.x * .75 + 2.6, 7.0 + focus * .32, 15.2, spot.x * .08, .90]
+      : open ? [open, 4.0 + drift, 8.7, 15.1, 0, .76]
+        : event ? [0, 6.0 + drift, 12.0, 14.5, 0, 0]
+          : [0, ...opening];
+    if (target.every((value, index) => value === destination[index])) return;
+    destination = target;
+    cancelAnimationFrame(frame);
+    if (reducedMotion.matches) {
+      view = target;
+      render();
+      return;
+    }
+    const origin = view;
+    const start = performance.now();
+    function animate(now) {
+      const fraction = Math.min(1, (now - start) / 800);
+      const eased = fraction * fraction * (3 - 2 * fraction);
+      view = origin.map((value, index) => THREE.MathUtils.lerp(value, target[index], eased));
+      render();
+      if (fraction < 1) frame = requestAnimationFrame(animate);
+    }
+    frame = requestAnimationFrame(animate);
+  }
+
+  viewport.append(renderer.domElement);
+  panel.classList.add('has-webgl');
+  new ResizeObserver(render).observe(viewport);
+  renderer.domElement.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    lost = true;
+    panel.classList.remove('has-webgl');
+  });
   renderer.domElement.addEventListener('webglcontextrestored', () => {
+    lost = false;
     panel.classList.add('has-webgl');
     render();
   });
   return {
-    setProgress,
-    setPlan(nextLayout, planned) {
-      const signature = JSON.stringify([nextLayout, planned]);
-      if (signature === planSignature) return;
-      planSignature = signature;
-      rebuild(nextLayout, planned);
-      setProgress(progress);
+    setSketch,
+    setView,
+    setPull(next) {
+      if (pull === next) return;
+      pull = next;
+      render();
     },
   };
 }
