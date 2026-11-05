@@ -39,7 +39,7 @@ export function buildNotesFor({ idea, plan, choices, live }) {
     {
       title: live ? 'Inside the sandbox.' : 'How the demo comes together.',
       copy: live
-        ? 'Hermes writes the pages and interactions in a workspace for this idea. Scrollworks checks that the site can be served before opening it in the private preview.'
+        ? 'The builder saves the generated page in a folder for this idea. Scrollworks checks that it can serve the page before opening the private preview.'
         : 'Scrollworks assembles the demo in your browser and checks that it has a page to open. The last scroll brings it into the preview.',
     },
   ];

@@ -15,14 +15,14 @@ Open [Scrollworks on localhost](http://127.0.0.1:3000). Demo mode generates a se
 
 ## Enable Agent37 builds
 
-Copy `.env.example` to `.env`, set `AGENT37_API_KEY` to a key from a workspace with available compute and managed-model credits, and restart the server. For the private Sites deployment, set the same key as a server-side environment variable in Sites. [Agent37 API keys](https://www.agent37.com/dashboard/cloud/api-keys)
+Copy `.env.example` to `.env`, set `AGENT37_API_KEY` and a random `SCROLLWORKS_INSTANCE_TOKEN` of at least 32 characters, then run `npm run setup:shared`. Set `AGENT37_SHARED_INSTANCE_ID` to the ID it prints. Use the same three server-side values for the private Sites deployment. Run setup again with the same token to update the existing instance. [Agent37 API keys](https://www.agent37.com/dashboard/cloud/api-keys)
 
-- Submitting an idea provisions a Hermes instance and starts planning. The review step sends the three feature groups back to the same Hermes session to generate the site.
-- Scrollworks checks that the instance serves its index page over HTTPS. The private preview reads the generated files through the builder and renders them in a sandboxed iframe.
-- Preview access expires one hour after Agent37 creates the sandbox. Revisiting an expired build triggers deletion. **Delete sandbox** ends the build and its billing sooner.
+- One Agent37 instance runs the builder. A managed model plans and generates a self-contained page for each brief, and the builder saves it in a folder tied to the signed-in owner.
+- Scrollworks reads the page over Agent37's private port and renders it in the iframe at the end of the scroll. Each preview URL checks the owner and the build's age.
+- Each build expires one hour after submission. The instance clears expired folders every minute. **Delete build** removes the folder and its preview immediately.
 
 The Express server binds to loopback by default. For a separate HTTPS deployment, set `HOST`, `BUILDER_ORIGIN`, and `BUILDER_ACCESS_TOKEN`. The HTTP Basic username is `scrollworks` and the password is the access token. The private Sites deployment uses Sites authentication.
 
-`npm run build` packages the same application and API as a Sites Worker. The backend adapts the Express and Hermes flow from the [Agent37 site-builder starter](https://github.com/agent37-platform/examples/tree/eb480068188cda2f912fbbe2e9083e0838ffa81e/site-builder).
+`npm run build` packages the application and API as a Sites Worker. The provisioning and private port setup follow the [Agent37 site-builder starter](https://github.com/agent37-platform/examples/tree/eb480068188cda2f912fbbe2e9083e0838ffa81e/site-builder).
 
-The Express server also clears expired sandboxes while it is running.
+The shared instance stays awake so its cleanup runs when Scrollworks is closed. Agent37 meters compute for that instance and model usage for builds.

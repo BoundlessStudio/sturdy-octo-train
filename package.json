@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "setup:shared": "node scripts/setup-shared.mjs"
   },
   "engines": {
     "node": ">=20.11"

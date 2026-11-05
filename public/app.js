@@ -22,14 +22,13 @@ const PLAN_READY = 'Your blueprint plan is ready.';
 const NOTE_HISTORY_LIMIT = 24;
 const NOTE_CUE = 'Scroll down for a build note';
 const notes = [
-  [/requesting a dedicated/i, 'A separate workspace', 'Agent37 creates an isolated workspace for this idea. Hermes can build and check its files there.'],
-  [/waiting for Hermes/i, 'Meet the builder', 'Hermes starts inside the workspace and receives your idea as its brief.'],
+  [/opened a build folder|requesting a dedicated/i, 'A workspace for this idea', 'The builder keeps this site and its progress in a folder tied to your account.'],
   [/turning the brief|blueprint plan/i, 'From words to screens', 'The plan identifies the screens and what belongs on each one. Scrollworks uses that structure to draw your wireframe.'],
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
-  [/building the site|assembling/i, 'From scope to site', 'The builder turns the approved features into pages, styles, and interactions.'],
+  [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
   [/writing site files/i, 'The site takes shape', 'Hermes writes the site files in its workspace and connects the pieces of the approved design.'],
-  [/checking the index/i, 'A working preview', 'Scrollworks checks that the generated site responds before making the final frame available.'],
+  [/checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that the generated site responds before making the final frame available.'],
   [/verified|ready to open/i, 'A private frame', 'The finished site opens inside an isolated frame on the last scroll step.'],
   [/reconnecting/i, 'Picking up the build', 'The workspace saves the build state so Scrollworks can recover after a connection interruption.'],
 ];
@@ -126,7 +125,7 @@ function canBrowseBuildNotes() {
 }
 
 function cueFor(next) {
-  if (disposing) return ['wait', 'Deleting the sandbox…'];
+  if (disposing) return ['wait', 'Deleting this build…'];
   if (current === ideaStep && !job) {
     if (starting) return ['wait', 'Sending your idea…'];
     return ['next', ideaInput.value.trim().length >= 8 ? 'Scroll down to send your idea' : 'Type an idea, then scroll down'];
@@ -259,7 +258,7 @@ function renderFeed(step) {
   const actions = byId('feed-actions');
   actions.hidden = !(error && job.id);
   actions.replaceChildren();
-  if (error && job.id) actions.append(button('Delete sandbox', discard, 'button danger'));
+  if (error && job.id) actions.append(button('Delete build', discard, 'button danger'));
   feedback('feed-feedback');
 }
 
@@ -373,11 +372,11 @@ function renderPreview() {
   frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
   byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
-    + (job.live ? ' · Preview expires one hour after sandbox creation' : '');
+    + (job.live ? ' · Preview expires one hour after the build starts' : '');
   const actions = byId('preview-actions');
   actions.replaceChildren(button('New idea', () => reset(false)));
   if (job.live) {
-    actions.append(button('Delete sandbox', discard, 'button danger'));
+    actions.append(button('Delete build', discard, 'button danger'));
     if (previewLoad !== job) void loadPreview(job, frame);
   } else {
     if (!demoFile) demoFile = makeDemo(job.idea, job.plan, scope);
@@ -617,7 +616,7 @@ function stepBy(direction) {
 }
 
 async function discard(event) {
-  if (operation || disposing || !confirm('Delete this sandbox and its generated site?')) return;
+  if (operation || disposing || !confirm('Delete this build and its preview?')) return;
   const control = event.currentTarget;
   const feedbackId = current === preview ? 'preview-feedback' : 'feed-feedback';
   disposing = true;
@@ -629,6 +628,7 @@ async function discard(event) {
     reset(false);
   } catch (error) {
     disposing = false;
+    if ([404, 410].includes(error.status)) return reset(false);
     control.disabled = false;
     feedback(feedbackId, error.message);
     updatePrompt();
