@@ -13,7 +13,7 @@ export default {
         'OAI-Sites-Authorization': 'Bearer ' + siteToken,
         'X-Scrollworks-Expiry-Token': expiryToken,
       },
-      redirect: 'error',
+      redirect: 'manual',
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error('Scrollworks cleanup returned HTTP ' + response.status);

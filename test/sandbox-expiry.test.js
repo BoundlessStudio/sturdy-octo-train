@@ -87,7 +87,7 @@ test('the scheduled Worker calls the private cleanup endpoint and exposes no HTT
     assert.equal(options.method, 'POST');
     assert.equal(options.headers['OAI-Sites-Authorization'], 'Bearer site-test-token');
     assert.equal(options.headers['X-Scrollworks-Expiry-Token'], 'expiry-test-token');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     return Response.json({ expired: 0, deleted: 0, failed: 0 });
   });
   t.mock.method(console, 'log', () => {});
