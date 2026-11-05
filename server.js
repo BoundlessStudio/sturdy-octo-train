@@ -9,6 +9,7 @@ import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 import { ASSET_HEADERS, TYPES, VENDOR_FILES, appDocument } from './lib/assets.js';
 import { handleBuilder } from './lib/builder.js';
+import { sweepExpiredSandboxes } from './lib/sandbox-expiry.js';
 
 const env = process.env;
 const host = env.HOST || '127.0.0.1';
@@ -77,3 +78,22 @@ const server = app.listen(port, host, () => {
   const address = host.includes(':') ? '[' + host + ']' : host;
   console.log('Scrollworks (' + (env.AGENT37_API_KEY ? 'Agent37' : 'demo') + ') at http://' + address + ':' + server.address().port);
 });
+
+if (env.AGENT37_API_KEY) {
+  let sweeping = false;
+  async function sweep() {
+    if (sweeping) return;
+    sweeping = true;
+    try {
+      const { failed } = await sweepExpiredSandboxes(env);
+      if (failed) console.warn('Some expired Scrollworks sandboxes will be retried on the next cleanup.');
+    } catch {
+      console.warn('Scrollworks sandbox cleanup will be retried.');
+    } finally {
+      sweeping = false;
+    }
+  }
+  void sweep();
+  const timer = setInterval(sweep, 60_000).unref();
+  server.on('close', () => clearInterval(timer));
+}

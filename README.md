@@ -19,8 +19,10 @@ Copy `.env.example` to `.env`, set `AGENT37_API_KEY` to a key from a workspace w
 
 - Submitting an idea provisions a Hermes instance and starts planning. The review step sends the three feature groups back to the same Hermes session to generate the site.
 - Scrollworks checks that the instance serves its index page over HTTPS. The private preview reads the generated files through the builder and renders them in a sandboxed iframe.
-- Agent37 bills for instance resources and managed-model usage. Scrollworks enables idle sleep on each sandbox. **Delete sandbox** removes a generated site and ends billing for that instance. You can also manage instances in the Agent37 dashboard.
+- Scrollworks sandboxes expire one hour after Agent37 creates them. The cleanup job deletes expired instances, including sleeping ones. **Delete sandbox** ends the build and its billing sooner.
 
 The Express server binds to loopback by default. For a separate HTTPS deployment, set `HOST`, `BUILDER_ORIGIN`, and `BUILDER_ACCESS_TOKEN`. The HTTP Basic username is `scrollworks` and the password is the access token. The private Sites deployment uses Sites authentication.
 
 `npm run build` packages the same application and API as a Sites Worker. The backend adapts the Express and Hermes flow from the [Agent37 site-builder starter](https://github.com/agent37-platform/examples/tree/eb480068188cda2f912fbbe2e9083e0838ffa81e/site-builder).
+
+The live Site uses the [Cloudflare cleanup Worker](maintenance/worker.js) to check for expired Scrollworks sandboxes every minute. The Worker calls the Site’s private maintenance endpoint. Set `SCROLLWORKS_EXPIRY_TOKEN` as a Site secret and `SCROLLWORKS_EXPIRY_CREDENTIALS` as a Cloudflare Worker secret containing `siteToken` (the Sites service access token) and `expiryToken` (the same cleanup token). The Agent37 key stays in Sites. The Express server runs the cleanup itself while it is online.

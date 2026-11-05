@@ -372,7 +372,8 @@ function renderPreview() {
   const frame = byId('preview-frame');
   frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
-  byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out';
+  byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
+    + (job.live ? ' · Sandbox expires one hour after creation' : '');
   const actions = byId('preview-actions');
   actions.replaceChildren(button('New idea', () => reset(false)));
   if (job.live) {
@@ -494,7 +495,7 @@ async function recover(phase) {
     try {
       state = await (await api(buildPath())).json();
     } catch (error) {
-      if ([403, 404, 503].includes(error.status)) throw error;
+      if ([403, 404, 410, 503].includes(error.status)) throw error;
     }
     if (state?.stage === 'error') throw new Error(state.error || 'The sandbox reported a build error.');
     if (phase === 'plan' && state?.stage === 'scoping') {
@@ -524,6 +525,7 @@ async function run(phase, task, reconnect = true) {
       await recover(phase);
     }
   } catch (error) {
+    if (job.live && [404, 410].includes(error.status)) delete job.id;
     job.stage = 'error';
     job.failedAt = phase;
     job.error = error.message;
