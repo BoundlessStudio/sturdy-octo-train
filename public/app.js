@@ -8,22 +8,25 @@ const reader = byId('reader');
 const viewport = byId('stage-viewport');
 const workbench = byId('workbench');
 const ideaInput = byId('idea');
+const resetButton = byId('reset-build');
 const model = byId('blueprint-model');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const sessionKey = 'scrollworks.active-build';
 const phaseNames = { idea: 'Idea', plan: 'Plan', blueprint: 'Blueprint', scope: 'Scope', build: 'Build', preview: 'Preview' };
 const decisionNames = { keep: 'Keep', later: 'Later', never: 'Never' };
 const ideaStep = { id: 'idea', pane: 'idea', phase: 'idea' };
-const planStart = { id: 'plan-start', pane: 'feed', phase: 'plan', message: 'Your idea is in.' };
+const planStart = { id: 'plan-start', pane: 'blueprint', phase: 'plan', index: 0 };
 const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
-const PLAN_READY = 'Your blueprint plan is ready.';
 const NOTE_HISTORY_LIMIT = 24;
 const NOTE_CUE = 'Scroll down for a build note';
+const planNotes = [
+  { title: 'From idea to screens.', copy: 'The builder reads your brief and proposes screens. Each block in the wireframe represents a part of the site, such as a gallery, a calendar, or a form.' },
+  { title: 'Decide what ships first.', copy: 'You’ll see one feature at a time. Keep adds it to the first version, Later saves it for another pass, and Never leaves it out. Scroll down to file each choice.' },
+  { title: 'From blueprint to preview.', copy: 'After you review the scope, the builder turns it into a page. The finished site opens right here in the last step.' },
+].map((note, index, all) => ({ ...note, id: 'plan-note-' + index, pane: 'build-note', phase: 'plan', index, total: all.length }));
 const notes = [
-  [/opened a build folder|requesting a dedicated/i, 'A workspace for this idea', 'The builder keeps this site and its progress in a folder tied to your account.'],
-  [/turning the brief|blueprint plan/i, 'From words to screens', 'The plan identifies the screens and what belongs on each one. Scrollworks uses that structure to draw your wireframe.'],
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
   [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
@@ -36,8 +39,8 @@ const notes = [
 let job;
 let current = ideaStep;
 let liveAvailable = false;
-let starting = false;
-let operation = false;
+let configured = false;
+let operation;
 let disposing = false;
 let previewLoad;
 let demoFile = '';
@@ -66,12 +69,6 @@ function save() {
   }
 }
 
-function eventsFor(phase, entries) {
-  return entries.map((entry, index) => ({
-    ...entry, id: phase + '-' + index, pane: 'feed', phase, number: index + 1,
-  }));
-}
-
 function errorStep(phase) {
   return { id: phase + '-error', pane: 'feed', phase, error: true, message: job.error };
 }
@@ -83,7 +80,10 @@ function buildNoteStep(entry, pages) {
 
 function steps() {
   if (!job) return [ideaStep];
-  const flow = [ideaStep, planStart, ...eventsFor('plan', job.planLog)];
+  const flow = [ideaStep];
+  if (job.stage === 'planning' || job.sketchSeen || job.failedAt === 'plan') {
+    flow.push(planStart, ...planNotes.slice(0, job.stage === 'planning' ? planNotes.length : job.planNotesSeen || 0));
+  }
   if (job.failedAt === 'plan') return [...flow, errorStep('plan')];
   if (job.stage === 'planning') return flow;
   flow.push(
@@ -94,7 +94,9 @@ function steps() {
     recap,
   );
   if (job.stage === 'scoping') return flow;
-  const updates = [buildStart, ...eventsFor('build', job.log)];
+  const updates = [buildStart, ...job.log.map((entry, index) => ({
+    ...entry, id: 'build-' + index, pane: 'feed', phase: 'build', number: index + 1,
+  }))];
   const history = job.buildNotes || [];
   const pages = history.length ? buildNotesFor(job) : [];
   for (const [after, update] of updates.entries()) {
@@ -108,10 +110,20 @@ function steps() {
   return flow;
 }
 
-function record(phase, message) {
-  const entries = phase === 'plan' ? job.planLog : job.log;
-  if (!message || entries.at(-1)?.message === message) return;
-  entries.push({ message, time: Date.now() });
+function nextStep(flow, index) {
+  if (job && job.stage !== 'planning' && job.failedAt !== 'plan' && (current === ideaStep || current.phase === 'plan')) {
+    return flow.find(step => step.phase === 'blueprint');
+  }
+  const next = flow[index + 1];
+  if (current.phase === 'build' && next?.pane === 'build-note') {
+    return flow.slice(index + 1).find(step => step.pane !== 'build-note') || next;
+  }
+  return next;
+}
+
+function recordBuild(message) {
+  if (!message || job.log.at(-1)?.message === message) return;
+  job.log.push({ message, time: Date.now() });
   save();
   updatePrompt();
 }
@@ -127,7 +139,6 @@ function canBrowseBuildNotes() {
 function cueFor(next) {
   if (disposing) return ['wait', 'Deleting this build…'];
   if (current === ideaStep && !job) {
-    if (starting) return ['wait', 'Sending your idea…'];
     return ['next', ideaInput.value.trim().length >= 8 ? 'Scroll down to send your idea' : 'Type an idea, then scroll down'];
   }
   if (current.pane === 'feature' && job.stage === 'scoping') {
@@ -142,22 +153,25 @@ function cueFor(next) {
   }
   if (next) {
     if (next === preview) return ['next', 'Scroll down to open the preview'];
-    if (next.pane === 'build-note') return ['next', NOTE_CUE];
+    if (next.pane === 'build-note') return ['next', next.phase === 'plan' ? 'Scroll down for a planning note' : NOTE_CUE];
     if (next === recap) return ['next', 'Scroll down to review your choices'];
-    if (next.pane === 'feature') return ['next', 'Scroll down to see the next feature'];
-    if (next.pane === 'blueprint') return ['next', 'Scroll down to lift the next screen'];
+    if (next.pane === 'feature') return ['next', next.index === 0 ? 'Scroll down to choose features' : 'Scroll down to see the next feature'];
+    if (next === planStart) return ['next', 'Scroll down to see the draft blueprint'];
+    if (next.pane === 'blueprint') return ['next', next.index === 0 ? 'Scroll down to see your 3D blueprint' : 'Scroll down to lift the next screen'];
     return ['next', 'Scroll down to read the next update'];
   }
   if (canBrowseBuildNotes()) return ['next', NOTE_CUE];
   if (current === preview) return ['done', 'This is the final step'];
   if (current.error) return ['done', 'This run is paused'];
+  if (job?.stage === 'planning') return ['wait', 'Finishing your blueprint…'];
   return ['wait', 'Waiting for the next update'];
 }
 
 function updatePrompt() {
   const flow = steps();
   const index = flow.findIndex(step => step.id === current.id);
-  const [state, label] = cueFor(flow[index + 1]);
+  const [state, label] = cueFor(nextStep(flow, index));
+  resetButton.disabled = disposing || (!job && !ideaInput.value);
   byId('scroll-prompt').dataset.state = state;
   byId('scroll-arrow').textContent = state === 'done' ? '·' : state === 'wait' ? '…' : '↓';
   const instruction = byId('scroll-instruction');
@@ -165,8 +179,9 @@ function updatePrompt() {
   byId('scroll-help').textContent = state === 'next' ? 'Wheel, swipe up, or Page Down'
     : state === 'wait' ? 'Scroll again when an update arrives' : 'Scroll up to review earlier steps';
   if (label === NOTE_CUE && canBrowseBuildNotes()) byId('scroll-help').textContent = 'Build in progress';
+  if (job?.stage === 'planning' && current.phase === 'plan' && state === 'next') byId('scroll-help').textContent = 'Blueprint in progress';
   const stepNumber = flow.slice(0, index + 1).filter(step => step.pane !== 'build-note').length;
-  byId('step-marker').textContent = current.pane === 'build-note' ? 'Build notes'
+  byId('step-marker').textContent = current.pane === 'build-note' ? phaseNames[current.phase] + ' notes'
     : String(stepNumber).padStart(2, '0') + ' / ' + phaseNames[current.phase];
   byId('back-hint').hidden = index <= 0 || state === 'done';
 }
@@ -174,7 +189,7 @@ function updatePrompt() {
 function updateMode() {
   const live = job ? job.live : liveAvailable;
   byId('mode').classList.toggle('live', live);
-  byId('mode').lastElementChild.textContent = live ? 'Agent37 live' : 'Demo mode';
+  byId('mode').lastElementChild.textContent = live ? 'Agent37 live' : configured ? 'Demo mode' : 'Connecting';
 }
 
 function feedback(id, text = '') {
@@ -186,6 +201,8 @@ function feedback(id, text = '') {
 function show(step, direction = 0) {
   current = step;
   if (job) {
+    if (step === planStart) job.sketchSeen = true;
+    if (step.phase === 'plan' && step.pane === 'build-note') job.planNotesSeen = Math.max(job.planNotesSeen || 0, step.index + 1);
     job.step = step.id;
     save();
   }
@@ -229,7 +246,7 @@ function show(step, direction = 0) {
 function updateIdea() {
   ideaInput.removeAttribute('aria-invalid');
   byId('idea-count').textContent = ideaInput.value.length + ' / ' + MAX_IDEA;
-  byId('idea-feedback').textContent = job ? 'Idea already sent. Scroll down to reread the plan.' : '';
+  byId('idea-feedback').textContent = job ? 'Idea already sent. Scroll down to see the blueprint.' : '';
   if (current === ideaStep) renderModel(current);
   updatePrompt();
 }
@@ -239,18 +256,12 @@ function renderFeed(step) {
   const plan = phase === 'plan';
   const note = error
     ? ['What you can do', 'Scroll up to reread the last update. ' + (plan ? 'Start with a fresh idea if you want to try again.' : 'Scroll down to retry with the approved scope.')]
-    : step === planStart
-      ? ['First comes the plan', job.live
-        ? 'Agent37 takes your brief and proposes screens and features. The next scroll reads the first available update.'
-        : 'Demo mode sketches screens and features in your browser. Scroll down to reveal the blueprint.']
-      : step === buildStart
-        ? ['The build is underway', 'Your choices define the first version. Each update waits for you to scroll to it.']
-        : (notes.find(([pattern]) => pattern.test(message))?.slice(1) ||
-          ['Inside the build', 'This update comes from the sandbox running your brief.']);
+    : step === buildStart
+      ? ['The build is underway', 'Your choices define the first version. Each update waits for you to scroll to it.']
+      : (notes.find(([pattern]) => pattern.test(message))?.slice(1) ||
+        ['Inside the build', 'This update comes from the sandbox running your brief.']);
   byId('feed-label').textContent = (plan ? 'PLANNING' : 'BUILD') + (error ? ' PAUSED' : ' UPDATE');
   byId('feed-title').textContent = message;
-  byId('feed-detail').textContent = step === planStart ? job.idea : '';
-  byId('feed-detail').hidden = step !== planStart;
   const clock = time ? new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   byId('feed-index').textContent = number ? String(number).padStart(2, '0') + ' / ' + clock : phaseNames[phase].toUpperCase();
   byId('guide-title').textContent = note[0];
@@ -262,16 +273,21 @@ function renderFeed(step) {
   feedback('feed-feedback');
 }
 
-function renderBlueprint({ index, screen, total }) {
-  byId('blueprint-index').textContent = 'BLUEPRINT / ' + (index + 1) + ' OF ' + total;
+function renderBlueprint(step) {
+  const draft = step === planStart;
+  const { index, screen = screensFor(draftPlan(job.idea), job.idea)[0], total } = step;
+  byId('blueprint-index').textContent = draft ? 'DRAFT BLUEPRINT' : 'BLUEPRINT / ' + (index + 1) + ' OF ' + total;
   byId('blueprint-title').textContent = screen.name;
-  byId('blueprint-copy').textContent = index === 0
-    ? 'The first screen lifts out of your sketch. Here’s what belongs on it.'
-    : 'This screen connects to the rest of your site. Here’s what belongs on it.';
+  byId('blueprint-copy').textContent = draft
+    ? 'Your brief starts as a 3D sketch. The full blueprint adds the screens and features for your build.'
+    : index === 0
+      ? 'The first screen lifts out of your sketch. Here’s what belongs on it.'
+      : 'This screen connects to the rest of your site. Here’s what belongs on it.';
   byId('blueprint-blocks').replaceChildren(...screen.blocks.map(block => node('li', block.label)));
 }
 
-function renderBuildNote({ title, copy, points = [], index, total }) {
+function renderBuildNote({ title, copy, points = [], index, total, phase }) {
+  byId('build-note-label').textContent = phase === 'plan' ? 'PLANNING NOTES' : 'BUILD NOTES';
   byId('build-note-index').textContent = (index + 1) + ' / ' + total;
   byId('build-note-title').textContent = title;
   byId('build-note-copy').textContent = copy;
@@ -284,15 +300,16 @@ function renderModel(step) {
   model.hidden = step === preview;
   if (model.hidden) return;
   const idea = step === ideaStep ? ideaInput.value.trim() : job.idea;
-  const drafting = step === ideaStep || (step.phase === 'plan' && step.message !== PLAN_READY);
+  const drafting = step === ideaStep || step.phase === 'plan';
   const plan = drafting ? draftPlan(idea) : job.plan;
   const title = idea ? plan.title : 'Untitled idea';
   const screens = idea ? screensFor(plan, idea) : [];
   const focus = step.pane === 'blueprint' ? step.index : step.focus ?? -1;
-  const open = step.pane === 'blueprint' ? focus + 1 : step.phase === 'scope' || step.phase === 'build' ? screens.length : 0;
+  const open = step.pane === 'blueprint' ? focus + 1
+    : step.phase === 'scope' || step.phase === 'build' ? screens.length : step.phase === 'plan' ? 1 : 0;
   const detail = {
     idea: job ? 'ORIGINAL SKETCH' : 'SKETCH / AS YOU TYPE',
-    plan: drafting ? 'DRAFT SKETCH' : 'PLAN READY',
+    plan: 'DRAFT SKETCH',
     blueprint: 'SCREEN ' + open + ' / ' + screens.length,
     scope: 'FIRST RELEASE / SCOPE',
     build: step.pane === 'build-note' ? 'BUILD NOTES' : step.number ? 'SANDBOX / UPDATE ' + step.number : 'SANDBOX / BUILD',
@@ -309,7 +326,7 @@ function renderModel(step) {
   }));
   wireframe?.setSketch(title, screens);
   const event = step.number || 0;
-  wireframe?.setView(open, focus, step.phase === 'plan' ? -event : step.phase === 'build' ? event : 0);
+  wireframe?.setView(open, focus, step.phase === 'build' ? event : 0);
 }
 
 function renderFeature({ feature, index }) {
@@ -420,10 +437,11 @@ async function api(url, options) {
   throw error;
 }
 
-const post = (url, data) => api(url, {
+const post = (url, data, signal) => api(url, {
   method: 'POST',
   headers: { 'content-type': 'application/json' },
   body: JSON.stringify(data),
+  signal,
 });
 
 function buildPath(suffix = '') {
@@ -433,8 +451,8 @@ function buildPath(suffix = '') {
 function completePlan(plan) {
   job.plan = plan;
   job.stage = 'scoping';
-  record('plan', PLAN_READY);
   save();
+  updatePrompt();
 }
 
 function completeBuild() {
@@ -443,7 +461,7 @@ function completeBuild() {
   updatePrompt();
 }
 
-async function readEvents(response, phase) {
+async function readEvents(response, phase, signal) {
   if (!response.body) throw new Error('The build connection ended before it sent a result.');
   const stream = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
@@ -451,13 +469,14 @@ async function readEvents(response, phase) {
   try {
     for (;;) {
       const { value, done } = await stream.read();
+      signal.throwIfAborted();
       buffer += value || '';
       const lines = buffer.split('\n');
       buffer = done ? '' : lines.pop();
       for (const line of lines) {
         if (!line.trim()) continue;
         const event = JSON.parse(line);
-        if (event.type === 'status') record(phase, event.message);
+        if (event.type === 'status' && phase === 'build') recordBuild(event.message);
         if (event.type === 'sandbox') {
           job.id = event.id;
           save();
@@ -486,16 +505,18 @@ async function readEvents(response, phase) {
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function recover(phase) {
+async function recover(phase, signal) {
   const deadline = Date.now() + 12 * 60 * 1000;
-  record(phase, 'Reconnecting to the sandbox…');
+  if (phase === 'build') recordBuild('Reconnecting to the sandbox…');
   while (Date.now() < deadline) {
+    signal.throwIfAborted();
     let state;
     try {
-      state = await (await api(buildPath())).json();
+      state = await (await api(buildPath(), { signal })).json();
     } catch (error) {
       if ([403, 404, 410, 503].includes(error.status)) throw error;
     }
+    signal.throwIfAborted();
     if (state?.stage === 'error') throw new Error(state.error || 'The sandbox reported a build error.');
     if (phase === 'plan' && state?.stage === 'scoping') {
       completePlan(state.plan);
@@ -504,7 +525,7 @@ async function recover(phase) {
     if (phase === 'build' && state?.stage === 'ready') {
       job.plan = state.plan;
       job.choices = state.choices || job.choices;
-      record('build', 'Preview verified.');
+      recordBuild('Preview verified.');
       completeBuild();
       return;
     }
@@ -515,44 +536,55 @@ async function recover(phase) {
 }
 
 async function run(phase, task, reconnect = true) {
-  operation = true;
+  const controller = new AbortController();
+  const { signal } = controller;
+  operation = controller;
   try {
     try {
-      await task();
+      await task(signal);
     } catch (error) {
+      if (signal.aborted) return;
       if (!reconnect || !job.id || error.terminal || (error.status && error.status !== 409)) throw error;
-      await recover(phase);
+      await recover(phase, signal);
     }
   } catch (error) {
+    if (signal.aborted) return;
     if (job.live && [404, 410].includes(error.status)) delete job.id;
     job.stage = 'error';
     job.failedAt = phase;
     job.error = error.message;
     save();
   } finally {
-    operation = false;
-    updatePrompt();
+    if (operation === controller) {
+      operation = undefined;
+      updatePrompt();
+    }
   }
 }
 
 async function sendIdea() {
-  if (starting) return;
+  if (job) return;
   const idea = ideaInput.value.trim();
   if (idea.length < 8 || idea.length > MAX_IDEA) {
     ideaInput.setAttribute('aria-invalid', 'true');
     byId('idea-feedback').textContent = 'Use 8 to ' + MAX_IDEA + ' characters before you scroll.';
     return;
   }
-  starting = true;
-  updatePrompt();
-  await configuration;
-  job = {
-    idea, live: liveAvailable, stage: liveAvailable ? 'planning' : 'scoping',
-    plan: draftPlan(idea), choices: {}, drafts: {}, planLog: [], log: [],
+  const active = job = {
+    idea, live: liveAvailable, stage: liveAvailable || !configured ? 'planning' : 'scoping',
+    plan: draftPlan(idea), choices: {}, drafts: {}, log: [],
   };
-  starting = false;
-  show(planStart, 1);
-  if (job.live) await run('plan', async () => readEvents(await post('/api/builds', { idea }), 'plan'));
+  show(steps()[1], 1);
+  await configuration;
+  if (job !== active) return;
+  if (!liveAvailable) {
+    if (job.stage === 'planning') completePlan(job.plan);
+    return;
+  }
+  job.live = true;
+  save();
+  updateMode();
+  await run('plan', async signal => readEvents(await post('/api/builds', { idea }, signal), 'plan', signal));
 }
 
 async function compile() {
@@ -563,32 +595,34 @@ async function compile() {
   delete job.failedAt;
   delete job.error;
   show(buildStart, 1);
-  await run('build', async () => {
+  await run('build', async signal => {
     if (job.live) {
-      await readEvents(await post(buildPath('/compile'), { choices: job.choices }), 'build');
+      await readEvents(await post(buildPath('/compile'), { choices: job.choices }, signal), 'build', signal);
       return;
     }
-    record('build', 'Applied your feature choices.');
+    recordBuild('Applied your feature choices.');
     await pause(400);
-    record('build', 'Assembling the demo page in your browser.');
+    signal.throwIfAborted();
+    recordBuild('Assembling the demo page in your browser.');
     await pause(450);
+    signal.throwIfAborted();
     demoFile = makeDemo(job.idea, job.plan, scopeFor(job.plan, job.choices));
     const document = new DOMParser().parseFromString(demoFile, 'text/html');
     if (!document.querySelector('main h1')) throw new Error('The demo preview could not be assembled.');
-    record('build', 'Demo HTML is ready to open.');
+    recordBuild('Demo HTML is ready to open.');
     completeBuild();
   });
 }
 
 function stepBy(direction) {
-  if (starting || disposing) return;
+  if (disposing) return;
   if (!job) {
     if (direction > 0) void sendIdea();
     return;
   }
   const flow = steps();
   const index = flow.findIndex(step => step.id === current.id);
-  const next = flow[index + direction];
+  const next = direction > 0 ? nextStep(flow, index) : flow[index - 1];
   if (direction > 0) {
     if (current.pane === 'feature' && job.stage === 'scoping') {
       job.choices[current.feature.id] = choiceFor(current.feature);
@@ -636,7 +670,9 @@ async function discard(event) {
 }
 
 function reset(keepIdea) {
-  if (operation || disposing) return;
+  if (disposing) return;
+  operation?.abort();
+  operation = undefined;
   job = undefined;
   demoFile = '';
   previewLoad = undefined;
@@ -659,19 +695,21 @@ function restore() {
   ideaInput.value = saved.idea;
   if (saved.live && !saved.id && saved.stage !== 'error') return;
   const wasPlanning = saved.stage === 'planning' || saved.stage === 'scoping' || saved.failedAt === 'plan';
+  const { planLog, ...state } = saved;
   job = {
-    ...saved, choices: saved.choices || {}, drafts: saved.drafts || {},
-    planLog: saved.planLog || (wasPlanning ? saved.log || [] : []),
-    log: !saved.planLog && wasPlanning ? [] : saved.log || [],
+    ...state, choices: saved.choices || {}, drafts: saved.drafts || {},
+    log: !planLog && wasPlanning ? [] : saved.log || [],
   };
-  if (!job.live && job.stage === 'building') job.stage = 'scoping';
+  if (!job.live && ['planning', 'building'].includes(job.stage)) job.stage = 'scoping';
   const flow = steps();
   const resumed = flow.find(step => step.id === job.step)
     || (job.step?.startsWith('blueprint-') && flow.findLast(step => step.phase === 'blueprint'));
-  show(resumed || (job.stage === 'building' || job.stage === 'ready' ? buildStart : planStart));
+  const fallback = job.failedAt === 'plan' ? flow.at(-1) : job.stage === 'planning' ? planStart
+    : job.stage === 'building' || job.stage === 'ready' ? buildStart : flow.find(step => step.phase === 'blueprint');
+  show(resumed || fallback);
   if (job.live && ['planning', 'building'].includes(job.stage)) {
     const phase = job.stage === 'planning' ? 'plan' : 'build';
-    void run(phase, () => recover(phase), false);
+    void run(phase, signal => recover(phase, signal), false);
   }
 }
 
@@ -679,9 +717,10 @@ const configuration = fetch('/api/config', { signal: AbortSignal.timeout(8000) }
   .then(response => response.ok ? response.json() : {})
   .then(data => { liveAvailable = data.live === true; })
   .catch(() => {})
-  .finally(updateMode);
+  .finally(() => { configured = true; updateMode(); });
 
 ideaInput.addEventListener('input', updateIdea);
+resetButton.addEventListener('click', () => reset(false));
 history.scrollRestoration = 'manual';
 attachReader(reader, viewport, stepBy, pull => {
   if (!reducedMotion.matches && !model.hidden) wireframe?.setPull(pull);

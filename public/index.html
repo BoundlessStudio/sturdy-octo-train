@@ -7,8 +7,8 @@
   <meta name="description" content="Write an idea and scroll through every step of its build.">
   <title>Scrollworks — Build while you scroll</title>
   <link rel="icon" href="/mark.svg?v=paper" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=build-notes">
-  <script id="app-entry" type="module" src="/app.js?v=shared-builder"></script>
+  <link rel="stylesheet" href="/style.css?v=blueprint-first">
+  <script id="app-entry" type="module" src="/app.js?v=blueprint-first"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -17,7 +17,10 @@
         <header class="masthead">
           <div class="shell masthead-inner">
             <div class="brand"><img src="/mark.svg?v=paper" width="22" height="22" alt="">Scrollworks</div>
-            <span class="mode" id="mode"><i aria-hidden="true"></i><span>Connecting</span></span>
+            <div class="masthead-actions">
+              <span class="mode" id="mode"><i aria-hidden="true"></i><span>Connecting</span></span>
+              <button class="button" id="reset-build" type="button" disabled>Reset</button>
+            </div>
           </div>
         </header>
         <div class="workbench shell" id="workbench" data-phase="idea">
@@ -40,7 +43,6 @@
               <div class="step-content">
                 <p class="eyebrow"><span id="feed-label">SANDBOX UPDATE</span><span id="feed-index"></span></p>
                 <h2 id="feed-title"></h2>
-                <p class="step-caption brief-quote" id="feed-detail"></p>
                 <aside class="field-note" aria-labelledby="guide-title">
                   <p class="mono note-label">FIELD NOTES</p>
                   <h3 id="guide-title"></h3>
@@ -53,7 +55,7 @@
 
             <section class="pane" id="build-note-pane" aria-labelledby="build-note-title" hidden>
               <div class="step-content">
-                <p class="eyebrow"><span>BUILD NOTES</span><span id="build-note-index"></span></p>
+                <p class="eyebrow"><span id="build-note-label">BUILD NOTES</span><span id="build-note-index"></span></p>
                 <h2 id="build-note-title"></h2>
                 <p class="step-caption" id="build-note-copy"></p>
                 <ul class="blocks build-note-points" id="build-note-points"></ul>
