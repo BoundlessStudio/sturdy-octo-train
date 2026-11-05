@@ -25,4 +25,4 @@ The Express server binds to loopback by default. For a separate HTTPS deployment
 
 `npm run build` packages the same application and API as a Sites Worker. The backend adapts the Express and Hermes flow from the [Agent37 site-builder starter](https://github.com/agent37-platform/examples/tree/eb480068188cda2f912fbbe2e9083e0838ffa81e/site-builder).
 
-The live Site uses the [Cloudflare cleanup Worker](maintenance/worker.js) to check for expired Scrollworks sandboxes every minute. The Worker calls the Site’s private maintenance endpoint. Set `SCROLLWORKS_EXPIRY_TOKEN` as a Site secret and `SCROLLWORKS_EXPIRY_CREDENTIALS` as a Cloudflare Worker secret containing `siteToken` (the Sites service access token) and `expiryToken` (the same cleanup token). The Agent37 key stays in Sites. The Express server runs the cleanup itself while it is online.
+For hosted cleanup, link an hourly ChatGPT Sites schedule to the private `cleanup_expired_sandboxes` tool. The tool deletes the signed-in owner’s expired builds on the next run. The Agent37 key stays in Sites. The Express server runs cleanup itself while it is online.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { handleBuilder } from '../lib/builder.js';
-import { handleSandboxMaintenance } from '../lib/sandbox-expiry.js';
+import { handleSandboxMaintenance, handleSandboxMcp } from '../lib/sandbox-expiry.js';
 import cleanupWorker from '../maintenance/worker.js';
 
 const env = { AGENT37_API_KEY: 'test-key', SCROLLWORKS_EXPIRY_TOKEN: 'test-cleanup-token' };
@@ -79,6 +79,35 @@ test('cleanup failures are reported so the next scheduled sweep can retry', asyn
   const result = await handleSandboxMaintenance(cleanupRequest('POST'), env);
   assert.equal(result.status, 502);
   assert.deepEqual(await result.json(), { expired: 1, deleted: 0, failed: 1 });
+});
+
+test('Sites cleanup requires an authenticated owner and only deletes their builds', async t => {
+  t.mock.method(Date, 'now', () => now * 1000);
+  t.mock.method(console, 'log', () => {});
+  const data = [instance('expired001'), instance('other00001', {
+    metadata: { ...metadata, scrollworks_owner: 'someone-else' },
+  })];
+  const api = t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (options.method === 'GET') return Response.json({ data });
+    assert.equal(options.method, 'DELETE');
+    assert.equal(new URL(url).pathname, '/v1/instances/expired001');
+    return new Response(null, { status: 204 });
+  });
+  const call = async (method, params, owner) => {
+    const request = new Request('https://scroll.rgbknights.com/mcp', {
+      method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    });
+    return (await (await handleSandboxMcp(request, env, owner)).json()).result;
+  };
+
+  const { tools } = await call('tools/list');
+  const params = { name: tools[0].name, arguments: {} };
+  assert.equal((await call('tools/call', params)).isError, true);
+  assert.equal(api.mock.callCount(), 0);
+  const cleanup = await call('tools/call', params, 'owner');
+  assert.equal(cleanup.isError, false);
+  assert.deepEqual(JSON.parse(cleanup.content[0].text), { expired: 1, deleted: 1, failed: 0 });
+  assert.equal(api.mock.callCount(), 2);
 });
 
 test('the scheduled Worker calls the private cleanup endpoint and exposes no HTTP action', async t => {
