@@ -31,8 +31,8 @@ app.use((req, res, next) => {
     const supplied = Buffer.from(req.headers.authorization || '');
     const expected = Buffer.from('Basic ' + Buffer.from('scrollworks:' + access).toString('base64'));
     if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
-      res.set('www-authenticate', 'Basic realm="Scrollworks"');
-      return res.status(401).send('Scrollworks sign-in is required.');
+      res.set('www-authenticate', 'Basic realm="Customware"');
+      return res.status(401).send('Customware sign-in is required.');
     }
   }
   res.set(ASSET_HEADERS);
@@ -72,11 +72,12 @@ app.get(['/', '/index.html'], (_req, res) => {
   const page = appDocument(readFileSync(join(root, 'public', 'index.html'), 'utf8'));
   res.set(page.headers).type('html').send(page.markup);
 });
+app.use('/highlights', express.static(join(root, 'media', 'highlights'), { maxAge: '1h' }));
 app.use(express.static(join(root, 'public')));
 
 const server = app.listen(port, host, () => {
   const address = host.includes(':') ? '[' + host + ']' : host;
-  console.log('Scrollworks (' + (env.AGENT37_API_KEY ? 'Agent37' : 'demo') + ') at http://' + address + ':' + server.address().port);
+  console.log('Customware (' + (env.AGENT37_API_KEY ? 'Agent37' : 'demo') + ') at http://' + address + ':' + server.address().port);
 });
 
 if (env.AGENT37_API_KEY) {

@@ -99,7 +99,7 @@ test('one instance serves separate owner folders and removes expired previews in
   const starter = await api(secondOwner, secondPath + '/preview/');
   assert.equal(starter.status, 200);
   const starterHtml = await starter.text();
-  assert.match(starterHtml, /Starter preview by Scrollworks/);
+  assert.match(starterHtml, /Starter preview by Customware/);
   assert.ok(starterHtml.includes('id="' + kept.id + '"'));
   assert.ok(!starterHtml.includes('id="' + second.plan.features[1].id + '"'));
 
@@ -142,7 +142,7 @@ test('the shared builder limits hourly model starts across browsers and the site
   for (let owner = 1; owner <= 18; owner++) assert.equal((await start(owner)).status, 202);
   const siteLimit = await start(19);
   assert.equal(siteLimit.status, 429);
-  assert.match(siteLimit.error, /Scrollworks reached/);
+  assert.match(siteLimit.error, /Customware reached/);
   now += 60 * 60_000;
   assert.equal((await start(0)).status, 202);
 });

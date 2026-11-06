@@ -1,7 +1,7 @@
 import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
-import { buildNotesFor } from './build-notes.js';
+import { buildNotesFor } from './build-notes.js?v=customware';
 import { makeDemo } from './demo.js';
-import { attachReader } from './reader.js?v=fullscreen-preview';
+import { attachReader } from './reader.js?v=customware';
 
 const byId = id => document.getElementById(id);
 const reader = byId('reader');
@@ -10,6 +10,8 @@ const workbench = byId('workbench');
 const ideaInput = byId('idea');
 const resetButton = byId('reset-build');
 const model = byId('blueprint-model');
+const highlight = byId('highlight-panel');
+const highlightVideo = byId('highlight-video');
 const previewFrame = byId('preview-frame');
 const previewBack = byId('preview-back');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -28,9 +30,9 @@ const previewVerified = 'Preview verified.';
 const demoReady = 'Demo HTML is ready to open.';
 const NOTE_CUE = 'Scroll down for a build note';
 const planNotes = [
-  { title: 'From idea to screens.', copy: 'The builder reads your brief and proposes screens. Each block in the wireframe represents a part of the site, such as a gallery, a calendar, or a form.' },
-  { title: 'Decide what ships first.', copy: 'You’ll see one feature at a time. Keep adds it to the first version, Later saves it for another pass, and Never leaves it out. Scroll down to file each choice.' },
-  { title: 'From blueprint to preview.', copy: 'After you review the scope, the builder turns it into a page. You’ll see it in the preview before the final scroll opens it full screen.' },
+  { title: 'Start with one process.', copy: 'Think of a request your team handles often. Who needs it, who decides what happens, and what exceptions do they look for? Those details give the blueprint a place to start.' },
+  { title: 'Build the first piece.', copy: 'A useful first version covers one real handoff. Keep the features needed for that handoff, save the rest for later, and scroll to file each choice.' },
+  { title: 'Learn from using it.', copy: 'Once the first version opens, try it the way your team works today. Note one thing that could make their next handoff clearer.' },
 ].map((note, index, all) => ({ ...note, id: 'plan-note-' + index, pane: 'build-note', phase: 'plan', index, total: all.length }));
 const notes = [
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
@@ -38,11 +40,11 @@ const notes = [
   [/accepted the page request/i, 'From brief to code', 'The model gets your brief, the wireframe, and the choices you saved for this version.'],
   [/first page code/i, 'The page is coming together', 'The builder is receiving the HTML, styles, and interactions for your page.'],
   [/styles came through/i, 'The visual layer', 'The styles give your layout its spacing, type, and color. The builder is still receiving the rest of the page.'],
-  [/assembling a starter preview/i, 'A starter version', 'Scrollworks is building a simple page from the features you kept. You can explore it on the last step.'],
+  [/assembling a starter preview/i, 'A starter version', 'Customware is building a simple page from the features you kept. You can explore it on the last step.'],
   [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
   [/writing site files/i, 'The site takes shape', 'Hermes writes the site files in its workspace and connects the pieces of the approved design.'],
-  [/checking that the page|checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that it received a complete page and can open the prototype.'],
+  [/checking that the page|checking the index|checking the private preview/i, 'A working preview', 'Customware checks that it received a complete page and can open the prototype.'],
   [/saved the site/i, 'Ready to serve', 'Your generated page is on disk in the folder for this build.'],
   [/verified|ready to open/i, 'A working prototype', 'Scroll down to see the finished page and save a copy.'],
 ];
@@ -355,8 +357,8 @@ function renderBlueprint(step) {
   byId('blueprint-blocks').replaceChildren(...screen.blocks.map(block => node('li', block.label)));
 }
 
-function renderBuildNote({ title, copy, points = [], index, total, phase }) {
-  byId('build-note-label').textContent = phase === 'plan' ? 'PLANNING NOTES' : 'BUILD NOTES';
+function renderBuildNote({ title, copy, points = [], index, total, phase, clip }) {
+  byId('build-note-label').textContent = clip ? 'FEATURE HIGHLIGHT' : phase === 'plan' ? 'PLANNING NOTES' : 'CUSTOMWARE FIELD NOTES';
   byId('build-note-index').textContent = (index + 1) + ' / ' + total;
   byId('build-note-title').textContent = title;
   byId('build-note-copy').textContent = copy;
@@ -365,8 +367,24 @@ function renderBuildNote({ title, copy, points = [], index, total, phase }) {
   list.hidden = !points.length;
 }
 
+function renderHighlight({ clip, title }) {
+  highlight.hidden = !clip;
+  if (!clip) {
+    highlightVideo.pause();
+    return;
+  }
+  const path = '/highlights/' + clip.id;
+  if (highlightVideo.getAttribute('src') !== path + '.mp4') {
+    highlightVideo.poster = path + '.webp';
+    highlightVideo.src = path + '.mp4';
+  }
+  highlightVideo.setAttribute('aria-label', title);
+  byId('highlight-caption').textContent = 'CUSTOMWARE FEATURE HIGHLIGHT · ' + clip.length;
+}
+
 function renderModel(step) {
-  model.hidden = step.pane === 'preview';
+  renderHighlight(step);
+  model.hidden = step.pane === 'preview' || Boolean(step.clip);
   if (model.hidden) return;
   const idea = step === ideaStep ? ideaInput.value.trim() : job.idea;
   const drafting = step === ideaStep || step.phase === 'plan';
@@ -484,7 +502,7 @@ async function preparePreview() {
     const html = await response.text();
     if (previewRequest !== request) return;
     const nonce = byId('app-entry').nonce;
-    if (!nonce) throw new Error('Refresh Scrollworks to load the prototype.');
+    if (!nonce) throw new Error('Refresh Customware to load the prototype.');
     const srcdoc = html.replaceAll('__SCROLLWORKS_PREVIEW_NONCE__', nonce);
     if (previewFrame.srcdoc !== srcdoc) previewFrame.srcdoc = srcdoc;
     feedback('preview-status');
@@ -522,7 +540,7 @@ async function downloadSite(event) {
     const href = URL.createObjectURL(file);
     const link = node('a');
     link.href = href;
-    link.download = (active.plan.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'scrollworks-site') + '.html';
+    link.download = (active.plan.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'customware-prototype') + '.html';
     document.body.append(link);
     link.click();
     link.remove();
@@ -882,7 +900,7 @@ attachReader(reader, viewport, stepBy, pull => {
 });
 restore();
 updateIdea();
-import('./wireframe.js?v=preview-handoff').then(({ mountWireframe }) => {
+import('./wireframe.js?v=customware').then(({ mountWireframe }) => {
   wireframe = mountWireframe(model, reducedMotion);
   renderModel(current);
 }).catch(() => {});

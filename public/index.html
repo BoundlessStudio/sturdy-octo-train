@@ -3,29 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#10110d">
-  <meta name="application-name" content="Scrollworks">
-  <meta name="description" content="Type an idea, see it take shape in 3D, and pick the features you want. Scroll through live Agent37 updates to a working website preview.">
-  <title>Scrollworks — Build while you scroll</title>
+  <meta name="theme-color" content="#f6f4ee">
+  <meta name="application-name" content="Customware">
+  <meta name="description" content="Describe a process, see it take shape in 3D, and choose what to keep. Scroll through build updates to a working prototype from Customware.">
+  <title>Customware — Build while you scroll</title>
   <link rel="canonical" href="https://scroll.rgbknights.com/">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Scrollworks">
-  <meta property="og:title" content="Scrollworks — Build while you scroll">
-  <meta property="og:description" content="Type an idea, see it take shape in 3D, and pick the features you want. Scroll through live Agent37 updates to a working website preview.">
+  <meta property="og:site_name" content="Customware">
+  <meta property="og:title" content="Customware — Build while you scroll">
+  <meta property="og:description" content="Describe a process, see it take shape in 3D, and choose what to keep. Scroll through build updates to a working prototype from Customware.">
   <meta property="og:url" content="https://scroll.rgbknights.com/">
-  <meta property="og:image" content="https://scroll.rgbknights.com/scrollworks-social.png">
+  <meta property="og:image" content="https://scroll.rgbknights.com/customware-social.png">
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Scrollworks. Build while you scroll. Three dark website wireframes rise from a lime-green blueprint.">
+  <meta property="og:image:alt" content="Customware. Build while you scroll. Prototype screens rise from a warm orange drafting board.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Scrollworks — Build while you scroll">
-  <meta name="twitter:description" content="Type an idea, see it take shape in 3D, and pick the features you want. Scroll through live Agent37 updates to a working website preview.">
-  <meta name="twitter:image" content="https://scroll.rgbknights.com/scrollworks-social.png">
-  <meta name="twitter:image:alt" content="Scrollworks. Build while you scroll. Three dark website wireframes rise from a lime-green blueprint.">
-  <link rel="icon" href="/mark.svg?v=paper" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=fullscreen-preview">
-  <script id="app-entry" type="module" src="/app.js?v=fullscreen-preview"></script>
+  <meta name="twitter:title" content="Customware — Build while you scroll">
+  <meta name="twitter:description" content="Describe a process, see it take shape in 3D, and choose what to keep. Scroll through build updates to a working prototype from Customware.">
+  <meta name="twitter:image" content="https://scroll.rgbknights.com/customware-social.png">
+  <meta name="twitter:image:alt" content="Customware. Build while you scroll. Prototype screens rise from a warm orange drafting board.">
+  <link rel="icon" href="/mark.svg?v=customware" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css?v=customware">
+  <script id="app-entry" type="module" src="/app.js?v=customware"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -33,7 +33,10 @@
       <div class="reader-screen">
         <header class="masthead">
           <div class="shell masthead-inner">
-            <div class="brand"><img src="/mark.svg?v=paper" width="22" height="22" alt="">Scrollworks</div>
+            <div class="brand">
+              <img class="brand-wordmark" src="/customware-wordmark.png" width="144" height="33" alt="Customware">
+              <img class="brand-hat" src="/mark.svg?v=customware" width="20" height="14" alt="">
+            </div>
             <div class="masthead-actions">
               <span class="mode" id="mode"><i aria-hidden="true"></i><span>Connecting</span></span>
               <button class="button" id="reset-build" type="button" disabled>Reset</button>
@@ -44,10 +47,10 @@
           <div class="stage-viewport" id="stage-viewport">
             <section class="pane idea-pane" id="idea-pane" aria-labelledby="idea-title">
               <div class="step-content">
-                <p class="eyebrow">01 / THE BRIEF</p>
-                <h1 id="idea-title"><label for="idea">What should<br> we build?</label></h1>
+                <p class="eyebrow">01 / YOUR WORK</p>
+                <h1 id="idea-title"><label for="idea">Turn your process<br> into software.</label></h1>
                 <div class="idea-field">
-                  <textarea id="idea" maxlength="500" minlength="8" rows="3" placeholder="Describe the site you have in mind…" aria-describedby="idea-feedback"></textarea>
+                  <textarea id="idea" maxlength="500" minlength="8" rows="3" placeholder="Describe a process or website you want to prototype…" aria-describedby="idea-feedback"></textarea>
                   <div class="idea-meta">
                     <p id="idea-feedback" role="status"></p>
                     <span class="mono" id="idea-count">0 / 500</span>
@@ -116,8 +119,11 @@
                 <div class="preview-window">
                   <div class="instrument-bar"><span id="preview-name">PRIVATE PREVIEW</span><span>LIVE PREVIEW</span></div>
                   <div class="preview-surface">
-                    <button class="preview-back brand" id="preview-back" type="button" aria-label="Back to Scrollworks" title="Back to preview" hidden>
-                      <img src="/mark.svg?v=paper" width="22" height="22" alt="">Scrollworks
+                    <button class="preview-back" id="preview-back" type="button" aria-label="Back to Customware" title="Back to preview" hidden>
+                      <span class="brand">
+                        <img class="brand-wordmark" src="/customware-wordmark.png" width="106" height="24" alt="Customware">
+                        <img class="brand-hat" src="/mark.svg?v=customware" width="15" height="11" alt="">
+                      </span>
                     </button>
                     <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer" inert></iframe>
                     <p class="preview-status" id="preview-status" role="status" hidden></p>
@@ -132,7 +138,7 @@
           <figure class="model-panel" id="blueprint-model" aria-labelledby="model-caption">
             <div class="viewport" aria-hidden="true">
               <div class="model-fallback">
-                <p class="paper-kicker">SCROLLWORKS / SKETCHPAD</p>
+                <p class="paper-kicker">CUSTOMWARE / SKETCHPAD</p>
                 <p class="paper-title">Untitled idea</p>
                 <div class="paper-screens"></div>
               </div>
@@ -141,6 +147,10 @@
               <span id="model-name">LIVE SKETCH</span>
               <span id="model-detail">UPDATES AS YOU TYPE</span>
             </figcaption>
+          </figure>
+          <figure class="highlight-panel" id="highlight-panel" hidden>
+            <video id="highlight-video" controls playsinline preload="none" aria-describedby="highlight-caption"></video>
+            <figcaption class="mono" id="highlight-caption"></figcaption>
           </figure>
         </div>
 

@@ -190,7 +190,7 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
     if (active.size >= MAX_ACTIVE) throw new RequestError(429, 'The shared builder is busy. Try again in a moment.');
     const time = now();
     while (modelStarts.length && modelStarts[0].time <= time - HOUR) modelStarts.shift();
-    if (modelStarts.length >= MAX_HOURLY_STARTS) throw new RequestError(429, 'Scrollworks reached its hourly build limit. Try again later.');
+    if (modelStarts.length >= MAX_HOURLY_STARTS) throw new RequestError(429, 'Customware reached its hourly build limit. Try again later.');
     if (modelStarts.filter(start => start.owner === owner).length >= MAX_HOURLY_OWNER_STARTS) {
       throw new RequestError(429, 'This build session reached its hourly limit. Try again later.');
     }

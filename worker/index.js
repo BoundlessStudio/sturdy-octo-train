@@ -14,6 +14,7 @@ export default {
       return response;
     }
     if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', { status: 405 });
+    if (pathname.startsWith('/highlights/') && env.ASSETS) return env.ASSETS.fetch(request);
     const path = pathname === '/' ? '/index.html' : pathname;
     if (!Object.hasOwn(assets, path)) return new Response('Page not found', { status: 404 });
     const { type, data, binary } = assets[path];

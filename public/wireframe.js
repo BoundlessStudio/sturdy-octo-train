@@ -1,8 +1,8 @@
 import * as THREE from '/vendor/three.module.js';
 
-const paper = '#d0f64f';
-const ink = '#242c13';
-const chalk = '#f1f2e9';
+const paper = '#f2c87d';
+const ink = '#1c221f';
+const chalk = '#f6f4ee';
 const padWidth = 9.4;
 const padDepth = 6.7;
 const padTop = .11;
@@ -34,19 +34,19 @@ function stroke(ctx, points, color, width = 2) {
 function drawPad(ctx, title, count) {
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, 1400, 1000);
-  for (let x = 34; x < 1400; x += 38) stroke(ctx, [[x, 0], [x, 1000]], '#536a241b', 1);
-  for (let y = 34; y < 1000; y += 38) stroke(ctx, [[0, y], [1400, y]], '#536a241b', 1);
-  ctx.strokeStyle = '#596f2d';
+  for (let x = 34; x < 1400; x += 38) stroke(ctx, [[x, 0], [x, 1000]], '#6c47241b', 1);
+  for (let y = 34; y < 1000; y += 38) stroke(ctx, [[0, y], [1400, y]], '#6c47241b', 1);
+  ctx.strokeStyle = '#947040';
   ctx.lineWidth = 2;
   ctx.strokeRect(31, 31, 1338, 938);
   ctx.fillStyle = ink;
   ctx.font = 'bold 22px monospace';
-  ctx.fillText('SCROLLWORKS  /  DESIGN PAD', 63, 77);
+  ctx.fillText('CUSTOMWARE  /  DESIGN PAD', 63, 77);
   ctx.font = '20px monospace';
   ctx.fillText('FIG. 01', 1220, 77);
 
-  stroke(ctx, [[65, 707], [432, 707], [476, 672], [805, 672], [842, 706], [1335, 706]], '#5b7131', 3);
-  stroke(ctx, [[1150, 826], [1280, 826], [1315, 789]], '#5b7131', 3);
+  stroke(ctx, [[65, 707], [432, 707], [476, 672], [805, 672], [842, 706], [1335, 706]], '#947040', 3);
+  stroke(ctx, [[1150, 826], [1280, 826], [1315, 789]], '#947040', 3);
   ctx.strokeRect(1103, 805, 46, 46);
   ctx.strokeRect(1168, 862, 124, 62);
   ctx.font = '22px monospace';
@@ -58,10 +58,10 @@ function drawPad(ctx, title, count) {
     ctx.strokeRect(130, 248, 212, 355);
     ctx.strokeRect(1053, 285, 222, 291);
     ctx.setLineDash([]);
-    stroke(ctx, [[458, 334], [693, 334], [693, 445], [458, 445], [458, 334], [693, 445]], '#71893c');
-    stroke(ctx, [[739, 342], [932, 342]], '#71893c');
-    stroke(ctx, [[739, 381], [900, 381]], '#71893c');
-    stroke(ctx, [[739, 421], [852, 421]], '#71893c');
+    stroke(ctx, [[458, 334], [693, 334], [693, 445], [458, 445], [458, 334], [693, 445]], '#a27a4d');
+    stroke(ctx, [[739, 342], [932, 342]], '#a27a4d');
+    stroke(ctx, [[739, 381], [900, 381]], '#a27a4d');
+    stroke(ctx, [[739, 421], [852, 421]], '#a27a4d');
     ctx.font = '21px monospace';
     ctx.fillText('SCREENS GO HERE', 451, 225);
   }
@@ -81,8 +81,8 @@ function drawPad(ctx, title, count) {
 }
 
 function drawBlock(ctx, kind, x, y, width, height, filled) {
-  const fg = filled ? '#4f6924' : '#a3bd6c';
-  const muted = filled ? '#9aaa81' : '#46543a';
+  const fg = filled ? '#496e55' : '#d0ab73';
+  const muted = filled ? '#a5b3a3' : '#4d6358';
   const line = (x1, y1, x2, y2, color = fg) => {
     stroke(ctx, [[x + width * x1, y + height * y1], [x + width * x2, y + height * y2]], color, 3);
   };
@@ -91,7 +91,7 @@ function drawBlock(ctx, kind, x, y, width, height, filled) {
     ctx.strokeStyle = emphasis ? fg : muted;
     ctx.lineWidth = 2;
     if (filled) {
-      ctx.fillStyle = emphasis ? paper : '#e5ecd4';
+      ctx.fillStyle = emphasis ? paper : '#e7eee3';
       ctx.fillRect(...rect);
     }
     ctx.strokeRect(...rect);
@@ -139,12 +139,12 @@ function drawBlock(ctx, kind, x, y, width, height, filled) {
 }
 
 function drawScreen(ctx, screen, width, height, filled) {
-  const border = filled ? '#91a478' : '#66794a';
-  ctx.fillStyle = filled ? '#edf1df' : '#1b2016';
+  const border = filled ? '#92a596' : '#678075';
+  ctx.fillStyle = filled ? '#f6f4ee' : '#26382f';
   ctx.fillRect(0, 0, width, height);
   if (!filled) {
-    for (let x = 25; x < width - 12; x += 34) stroke(ctx, [[x, 12], [x, height - 12]], '#303b24', 1);
-    for (let y = 25; y < height - 12; y += 34) stroke(ctx, [[12, y], [width - 12, y]], '#303b24', 1);
+    for (let x = 25; x < width - 12; x += 34) stroke(ctx, [[x, 12], [x, height - 12]], '#3d5347', 1);
+    for (let y = 25; y < height - 12; y += 34) stroke(ctx, [[12, y], [width - 12, y]], '#3d5347', 1);
   }
   ctx.strokeStyle = border;
   ctx.lineWidth = 6;
@@ -153,12 +153,12 @@ function drawScreen(ctx, screen, width, height, filled) {
   const side = 30;
   const head = 58;
   const content = width - side * 2;
-  ctx.fillStyle = filled ? '#dce6c6' : '#252c1d';
+  ctx.fillStyle = filled ? '#dfe9dc' : '#32483b';
   ctx.fillRect(11, 11, width - 22, head);
   for (let index = 0; index < 3; index++) {
     ctx.beginPath();
     ctx.arc(side + index * 17, 39, 4, 0, Math.PI * 2);
-    ctx.fillStyle = index === 0 && filled ? '#73973a' : border;
+    ctx.fillStyle = index === 0 && filled ? '#496e55' : border;
     ctx.fill();
   }
   ctx.fillStyle = filled ? ink : chalk;
@@ -171,7 +171,7 @@ function drawScreen(ctx, screen, width, height, filled) {
   for (const [index, block] of screen.blocks.entries()) {
     const y = top + index * (row + gap);
     if (filled) {
-      ctx.fillStyle = '#f9faef';
+      ctx.fillStyle = '#fdfdfb';
       ctx.fillRect(side, y, content, row);
     }
     ctx.strokeStyle = border;
@@ -200,8 +200,8 @@ export function mountWireframe(panel, reducedMotion) {
   scene.add(stage);
   const pad = canvasTexture(1400, 1000);
   const face = new THREE.MeshBasicMaterial({ map: pad.map });
-  const edge = new THREE.MeshBasicMaterial({ color: '#789632' });
-  const bottom = new THREE.MeshBasicMaterial({ color: '#5d752c' });
+  const edge = new THREE.MeshBasicMaterial({ color: '#b58245' });
+  const bottom = new THREE.MeshBasicMaterial({ color: '#875c33' });
   stage.add(new THREE.Mesh(new THREE.BoxGeometry(padWidth, padTop * 2, padDepth), [edge, edge, face, bottom, edge, edge]));
   const pieces = new THREE.Group();
   stage.add(pieces);
@@ -224,7 +224,7 @@ export function mountWireframe(panel, reducedMotion) {
     pivot.position.set(x, padTop + .015, z);
     pieces.add(pivot);
     const cast = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({
-      color: '#303b19', transparent: true, depthWrite: false,
+      color: '#654628', transparent: true, depthWrite: false,
     }));
     cast.rotation.x = -Math.PI / 2;
     cast.position.set(x + .15, padTop + .008, z - .27);
@@ -237,7 +237,7 @@ export function mountWireframe(panel, reducedMotion) {
     drawScreen(sketch.ctx, screen, pixels, tall, false);
     drawScreen(mock.ctx, screen, pixels, tall, true);
     const body = new THREE.Mesh(new THREE.BoxGeometry(width + .035, height + .035, .085),
-      new THREE.MeshBasicMaterial({ color: '#21261b' }));
+      new THREE.MeshBasicMaterial({ color: '#26372e' }));
     body.position.set(0, height / 2, -.029);
     pivot.add(body);
     const draft = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: sketch.map }));

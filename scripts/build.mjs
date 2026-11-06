@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, readdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, transform } from 'esbuild';
@@ -45,4 +45,5 @@ await build({
 });
 await mkdir(join(dist, '.openai'), { recursive: true });
 await copyFile(join(root, '.openai', 'hosting.json'), join(dist, '.openai', 'hosting.json'));
-console.log('Built the Scrollworks Worker in dist/server/index.js');
+await cp(join(root, 'media', 'highlights'), join(dist, 'client', 'highlights'), { recursive: true });
+console.log('Built Customware in dist/');

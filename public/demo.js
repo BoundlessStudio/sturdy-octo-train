@@ -81,7 +81,7 @@ export function makeDemo(idea, plan, scope, { starter = false } = {}) {
   <section class="intro"><p class="label">${theme.label}</p><h1>${starter ? title : theme.headline}</h1><p class="brief">${escape(idea)}</p></section>
   ${sections}
 </main>
-<footer>${starter ? 'Starter preview by Scrollworks' : 'Demo prototype created with Scrollworks'}</footer>
+<footer>${starter ? 'Starter preview by Customware' : 'Demo prototype created with Customware'}</footer>
 </body>
 </html>`;
 }
