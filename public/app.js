@@ -1,7 +1,7 @@
 import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
-import { buildNotesFor } from './build-notes.js?v=customware-priorities';
+import { buildNotesFor, FEATURE_WALKTHROUGHS } from './build-notes.js?v=customware-walkthroughs';
 import { makeDemo } from './demo.js';
-import { attachReader } from './reader.js?v=customware';
+import { attachReader } from './reader.js?v=customware-walkthroughs';
 
 const byId = id => document.getElementById(id);
 const reader = byId('reader');
@@ -10,8 +10,10 @@ const workbench = byId('workbench');
 const ideaInput = byId('idea');
 const resetButton = byId('reset-build');
 const model = byId('blueprint-model');
-const highlight = byId('highlight-panel');
-const highlightVideo = byId('highlight-video');
+const watchWalkthrough = byId('watch-walkthrough');
+const walkthroughDialog = byId('walkthrough-dialog');
+const walkthroughChoice = byId('walkthrough-choice');
+const walkthroughVideo = byId('walkthrough-video');
 const previewFrame = byId('preview-frame');
 const previewBack = byId('preview-back');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -361,7 +363,7 @@ function renderBlueprint(step) {
 }
 
 function renderBuildNote({ title, copy, points = [], plans = [], link, label, index, total, phase, clip }) {
-  byId('build-note-label').textContent = label || (clip ? 'FEATURE HIGHLIGHT' : phase === 'plan' ? 'PLANNING NOTES' : 'CUSTOMWARE FIELD NOTES');
+  byId('build-note-label').textContent = label || (phase === 'plan' ? 'PLANNING NOTES' : 'CUSTOMWARE FIELD NOTES');
   byId('build-note-index').textContent = (index + 1) + ' / ' + total;
   byId('build-note-title').textContent = title;
   byId('build-note-copy').textContent = copy;
@@ -381,26 +383,24 @@ function renderBuildNote({ title, copy, points = [], plans = [], link, label, in
     more.href = link.href;
     more.textContent = link.label;
   }
+  watchWalkthrough.hidden = !clip;
+  if (clip) watchWalkthrough.dataset.clip = clip;
+  byId('build-note-actions').hidden = !link && !clip;
 }
 
-function renderHighlight({ clip, title }) {
-  highlight.hidden = !clip;
-  if (!clip) {
-    highlightVideo.pause();
-    return;
-  }
+function renderWalkthrough() {
+  const clip = FEATURE_WALKTHROUGHS[walkthroughChoice.selectedIndex];
   const path = '/highlights/' + clip.id;
-  if (highlightVideo.getAttribute('src') !== path + '.mp4') {
-    highlightVideo.poster = path + '.webp';
-    highlightVideo.src = path + '.mp4';
+  if (walkthroughVideo.getAttribute('src') !== path + '.mp4') {
+    walkthroughVideo.poster = path + '.webp';
+    walkthroughVideo.src = path + '.mp4';
   }
-  highlightVideo.setAttribute('aria-label', clip.title || title);
-  byId('highlight-caption').textContent = (clip.title || 'Customware feature highlight') + ' · ' + clip.length;
+  walkthroughVideo.setAttribute('aria-label', clip.title);
+  byId('walkthrough-description').textContent = clip.description;
 }
 
 function renderModel(step) {
-  renderHighlight(step);
-  model.hidden = step.pane === 'preview' || Boolean(step.clip);
+  model.hidden = step.pane === 'preview';
   if (model.hidden) return;
   const idea = step === ideaStep ? ideaInput.value.trim() : job.idea;
   const drafting = step === ideaStep || step.phase === 'plan';
@@ -797,7 +797,7 @@ async function compile() {
 }
 
 function stepBy(direction) {
-  if (disposing || previewTransition || current === fullscreen) return;
+  if (disposing || previewTransition || current === fullscreen || walkthroughDialog.open) return;
   if (!job) {
     if (direction > 0) void sendIdea();
     return;
@@ -905,6 +905,18 @@ const configuration = fetch('/api/config', { signal: AbortSignal.timeout(8000) }
 
 ideaInput.addEventListener('input', updateIdea);
 resetButton.addEventListener('click', () => reset(false));
+walkthroughChoice.replaceChildren(...FEATURE_WALKTHROUGHS.map(({ id, title, duration }) => {
+  const option = node('option', title + ' · ' + duration);
+  option.value = id;
+  return option;
+}));
+watchWalkthrough.addEventListener('click', () => {
+  walkthroughChoice.value = watchWalkthrough.dataset.clip;
+  renderWalkthrough();
+  walkthroughDialog.showModal();
+});
+walkthroughChoice.addEventListener('change', renderWalkthrough);
+walkthroughDialog.addEventListener('close', () => walkthroughVideo.pause());
 previewBack.addEventListener('click', () => {
   if (current !== fullscreen) return;
   cancelPreviewTransition();

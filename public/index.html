@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://scroll.rgbknights.com/customware-social.png">
   <meta name="twitter:image:alt" content="Customware. Build while you scroll. Prototype screens rise from a warm orange drafting board.">
   <link rel="icon" href="/mark.svg?v=customware" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=customware-priorities">
-  <script id="app-entry" type="module" src="/app.js?v=customware-priorities"></script>
+  <link rel="stylesheet" href="/style.css?v=customware-walkthroughs">
+  <script id="app-entry" type="module" src="/app.js?v=customware-walkthroughs"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -80,7 +80,10 @@
                 <p class="step-caption" id="build-note-copy"></p>
                 <ul class="blocks build-note-points" id="build-note-points"></ul>
                 <dl class="build-note-plans" id="build-note-plans" hidden></dl>
-                <a class="build-note-link" id="build-note-link" target="_blank" rel="noopener noreferrer" hidden></a>
+                <div class="build-note-actions" id="build-note-actions" hidden>
+                  <a class="build-note-link" id="build-note-link" target="_blank" rel="noopener noreferrer" hidden></a>
+                  <button class="button" id="watch-walkthrough" type="button" aria-haspopup="dialog" hidden>Watch a walkthrough</button>
+                </div>
               </div>
             </section>
 
@@ -150,10 +153,6 @@
               <span id="model-detail">UPDATES AS YOU TYPE</span>
             </figcaption>
           </figure>
-          <figure class="highlight-panel" id="highlight-panel" hidden>
-            <video id="highlight-video" controls playsinline preload="none" aria-describedby="highlight-caption"></video>
-            <figcaption class="mono" id="highlight-caption"></figcaption>
-          </figure>
         </div>
 
         <footer class="reader-footer">
@@ -175,5 +174,22 @@
       </div>
     </div>
   </main>
+  <dialog class="walkthrough-dialog" id="walkthrough-dialog" aria-labelledby="walkthrough-heading">
+    <div class="walkthrough-header">
+      <div>
+        <p class="eyebrow">CUSTOMWARE</p>
+        <h2 id="walkthrough-heading">Product walkthroughs</h2>
+      </div>
+      <form method="dialog">
+        <button class="button" type="submit" autofocus>Close</button>
+      </form>
+    </div>
+    <div class="walkthrough-picker">
+      <label for="walkthrough-choice">Video</label>
+      <select id="walkthrough-choice"></select>
+    </div>
+    <p id="walkthrough-description" class="walkthrough-description"></p>
+    <video id="walkthrough-video" controls playsinline preload="none" aria-describedby="walkthrough-description"></video>
+  </dialog>
 </body>
 </html>

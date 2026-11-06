@@ -1,5 +1,32 @@
 import { scopeFor } from './plan.js';
 
+export const FEATURE_WALKTHROUGHS = [
+  {
+    id: 'test-in-a-copy', title: 'Test a change in a copy', duration: '1:08',
+    description: 'The Chief agent copies Rental Desk so the team can try changes before applying them to the working project.',
+  },
+  {
+    id: 'open-in-review', title: 'Open the result in Review', duration: '0:33',
+    description: 'Open the equipment app beside an analysis so the team can compare the source with the result.',
+  },
+  {
+    id: 'diagrams-and-build-logs', title: 'Follow diagrams and build logs', duration: '1:31',
+    description: 'See how diagrams, charts, and a live build log help a team follow a change.',
+  },
+  {
+    id: 'app-pilot-and-review', title: 'Review App Pilot’s work', duration: '1:37',
+    description: 'Watch App Pilot use an app in the browser while the team reviews its work and decides when to merge.',
+  },
+  {
+    id: 'agents-in-the-browser', title: 'Follow agents in the browser', duration: '1:28',
+    description: 'See App Pilots work in separate browsers, then review their work and inspect how pages connect.',
+  },
+  {
+    id: 'saved-analysis', title: 'Keep the evidence with the work', duration: '1:15',
+    description: 'See a saved analysis, its task discussion, and a way to ask about the same project from ChatGPT.',
+  },
+];
+
 export function buildNotesFor({ plan, choices }) {
   const { later } = scopeFor(plan, choices);
   // Priority notes come first so they remain available after a quick build.
@@ -32,9 +59,9 @@ export function buildNotesFor({ plan, choices }) {
       priority: true,
       label: 'CUSTOMWARE OWNERSHIP',
       title: 'You own the software.',
-      copy: 'With a paid plan, your business owns its application, source code, and data. Bring the whole team with unlimited users and no seat fees. Customware helps you scope connections to the tools you use.',
-      clip: { id: 'test-in-a-copy', title: 'Test a change in a copy', length: '1:08' },
-      link: { label: 'Explore Customware integrations', href: 'https://customware.ai/integrations' },
+      copy: 'With a paid plan, your business owns its application, source code, and data. Bring the whole team with unlimited users and no seat fees.',
+      clip: 'test-in-a-copy',
+      link: { label: 'See paid plan details', href: 'https://customware.ai/pricing' },
     },
     {
       priority: true,
@@ -45,38 +72,44 @@ export function buildNotesFor({ plan, choices }) {
       link: { label: 'Read the Lifestyle Drywall story', href: 'https://customware.ai/use-cases/lifestyle-drywall' },
     },
     {
-      title: 'Make the work visible.',
-      copy: 'Start by mapping the steps and decisions your team already knows. This Customware walkthrough shows how diagrams, charts, and a live build log help people follow a change.',
-      clip: { id: 'diagrams-and-build-logs', length: '1:31' },
+      label: 'CUSTOMWARE IMPLEMENTATION',
+      title: 'Get help with rollout.',
+      copy: 'Enterprise Pilot starts with one workflow. A dedicated implementation team helps plan the work each week, connect the systems it needs, and train the people who will use it.',
+      clip: 'open-in-review',
+      link: { label: 'See what Enterprise Pilot includes', href: 'https://customware.ai/pricing' },
     },
     {
+      label: 'CUSTOMWARE WORKFLOWS',
+      title: 'Share what your team knows.',
+      copy: 'Capture how people handle requests, make decisions, and spot exceptions. Customware turns those details into procedures and software that teammates can use and improve together.',
+      clip: 'diagrams-and-build-logs',
+      link: { label: 'See how team knowledge becomes software', href: 'https://customware.ai/why-now' },
+    },
+    {
+      label: 'CUSTOMWARE PEOPLE AND AI',
       title: 'Give people the final call.',
-      copy: 'Shared workflows give people and AI the same process to follow. Watch App Pilot use the app in a browser while the team decides when reviewed work is ready to merge.',
-      clip: { id: 'app-pilot-and-review', length: '1:37' },
+      copy: 'People and AI work from the same process. Agents can help with repeatable steps while the team guides decisions, reviews results, and handles exceptions.',
+      clip: 'app-pilot-and-review',
     },
     {
-      title: 'Follow agents as they work.',
-      copy: 'See several App Pilots use separate browsers, then review the work, hand it back, and see how the app’s pages connect in a flowchart.',
-      clip: { id: 'agents-in-the-browser', length: '1:28' },
+      label: 'CUSTOMWARE INTEGRATIONS',
+      title: 'Keep the tools you rely on.',
+      copy: 'Customware can connect tools through APIs or MCP where those are available. With the right access, agents can also work through existing software interfaces. Your team helps scope what each system allows.',
+      clip: 'agents-in-the-browser',
+      link: { label: 'Explore Customware integrations', href: 'https://customware.ai/integrations' },
     },
     {
-      title: 'Open the result in Review.',
-      copy: 'A chart can raise a useful next question. This Rental Desk example opens the equipment app beside the analysis so the team can review the source and the result together.',
-      clip: { id: 'open-in-review', length: '0:33' },
+      label: 'CUSTOMWARE WORKFLOW EXAMPLE',
+      title: 'From order to invoice.',
+      copy: 'A store order can enter a shared workflow, get assigned for approval, and become an invoice in accounting. The confirmation and files can then go into the team’s shared drive.',
+      link: { label: 'See the example workflow', href: 'https://customware.ai/integrations' },
     },
     {
-      title: 'Keep the evidence with the work.',
-      copy: 'See how an analyst saves a chart and how a task keeps its discussion. The walkthrough also shows a way to ask about the same project from ChatGPT.',
-      clip: { id: 'saved-analysis', length: '1:15' },
-    },
-    {
-      title: 'Keep the systems you rely on.',
-      copy: 'Choose the workflow you want to improve and decide which tools need to share data. In an implementation, the connections depend on each tool’s API and the permissions your team can grant.',
-    },
-    {
-      title: 'Let the team shape the next pass.',
-      copy: 'Try the first version of ' + plan.title + ' with someone who does the work. Ask where they hesitated and which exception the next version should handle.',
+      label: 'CUSTOMWARE CONTINUOUS IMPROVEMENT',
+      title: 'Improve it from real use.',
+      copy: 'Try ' + plan.title + ' with someone who does the work. Look for a handoff that still needs retyping, an approval that stalls, or an exception the team handles by hand. Pick one change for the next pass.',
       points: later.slice(0, 3).map(feature => feature.title),
+      clip: 'saved-analysis',
     },
   ];
 }

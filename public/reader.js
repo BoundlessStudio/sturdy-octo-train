@@ -61,10 +61,10 @@ export function attachReader(reader, content, onStep, onPull) {
   document.addEventListener('keydown', event => {
     if (reader.hasAttribute('data-fullscreen') || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
     const { key, target } = event;
+    if (target.closest?.('dialog[open]')) return;
     const editing = target.closest?.('textarea, input, select, [contenteditable]');
     const paging = key === 'PageDown' || key === 'PageUp';
     if (editing && !paging) return;
-    if (target.closest?.('video') && !paging) return;
     if (key === ' ' && target.closest?.('button, a, summary')) return;
     const direction = {
       ArrowUp: -1, PageUp: -1, Home: -1,
