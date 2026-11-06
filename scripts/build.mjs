@@ -10,7 +10,7 @@ const assets = {};
 
 async function addAsset(url, filename) {
   const extension = extname(filename);
-  const binary = extension === '.woff2';
+  const binary = extension === '.woff2' || extension === '.png';
   let data = await readFile(filename, binary ? 'base64' : 'utf8');
   if (url.startsWith('/vendor/') && extension === '.js') {
     data = (await transform(data, { minify: true, legalComments: 'inline', loader: 'js' })).code;
