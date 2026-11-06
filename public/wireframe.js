@@ -355,6 +355,11 @@ export function mountWireframe(panel, reducedMotion) {
   return {
     setSketch,
     setView,
+    finishMotion() {
+      cancelAnimationFrame(frame);
+      view = destination;
+      render();
+    },
     setPull(next) {
       if (pull === next) return;
       pull = next;

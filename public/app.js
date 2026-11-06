@@ -50,6 +50,8 @@ let configured = false;
 let operation;
 let disposing = false;
 let previewLoad;
+let previewRequest;
+let previewTransition;
 let demoFile = '';
 let wireframe;
 
@@ -190,7 +192,8 @@ function updatePrompt() {
   const instruction = byId('scroll-instruction');
   if (instruction.textContent !== label) instruction.textContent = label;
   byId('scroll-help').textContent = state === 'next' ? 'Wheel, swipe up, or Page Down'
-    : state === 'wait' ? 'Scroll again when an update arrives' : 'Scroll up to review earlier steps';
+    : state === 'wait' ? 'Scroll again when an update arrives'
+    : current === preview ? 'Scroll inside the preview to explore' : 'Scroll up to review earlier steps';
   if (label === NOTE_CUE && job?.stage === 'building') byId('scroll-help').textContent = 'Build in progress';
   if (job?.stage === 'planning' && current.phase === 'plan' && state === 'next') byId('scroll-help').textContent = 'Blueprint in progress';
   const stepNumber = flow.slice(0, index + 1).filter(step => step.pane !== 'build-note').length;
@@ -240,13 +243,14 @@ function show(step, direction = 0) {
     renderPreview();
   }
   if (step !== ideaStep) renderModel(step);
+  if (step.message === previewVerified && job.live && job.stage === 'ready') void fetchPreview(job);
   viewport.scrollTop = 0;
   updateMode();
   updatePrompt();
   if (direction) {
     reader.focus({ preventScroll: true });
     byId('step-announcement').textContent = pane.querySelector('h1, h2').textContent;
-    if (!reducedMotion.matches) {
+    if (!reducedMotion.matches && !(step === preview && previewTransition)) {
       const contents = pane.firstElementChild;
       contents.getAnimations().forEach(animation => animation.cancel());
       contents.animate([
@@ -255,6 +259,37 @@ function show(step, direction = 0) {
       ], { duration: 460, easing: 'cubic-bezier(.2,.75,.25,1)' });
     }
   }
+}
+
+function cancelPreviewTransition() {
+  if (!previewTransition) return;
+  previewTransition.skipTransition();
+  previewTransition = undefined;
+  delete document.documentElement.dataset.previewTransition;
+}
+
+function openPreview(direction) {
+  if (previewTransition) return;
+  if (reducedMotion.matches || typeof document.startViewTransition !== 'function') {
+    show(preview, direction);
+    return;
+  }
+  const root = document.documentElement;
+  const active = job;
+  const from = current;
+  wireframe?.finishMotion();
+  root.dataset.previewTransition = '';
+  const transition = document.startViewTransition(() => {
+    if (previewTransition !== transition || job !== active || current !== from) return;
+    show(preview, direction);
+  });
+  previewTransition = transition;
+  void transition.ready.catch(() => {});
+  void transition.finished.catch(() => {}).finally(() => {
+    if (previewTransition !== transition) return;
+    previewTransition = undefined;
+    delete root.dataset.previewTransition;
+  });
 }
 
 function updateIdea() {
@@ -427,12 +462,23 @@ function renderPreview() {
   }
 }
 
+function fetchPreview(active) {
+  if (previewRequest?.job === active && Date.now() < previewRequest.freshUntil) return previewRequest.html;
+  previewRequest?.controller.abort();
+  const controller = new AbortController();
+  const html = api(buildPath('/preview/'), { redirect: 'error', signal: requestSignal(controller.signal) }).then(response => response.text());
+  previewRequest = { job: active, html, controller, freshUntil: Date.now() + 30_000 };
+  void html.catch(() => {
+    if (previewRequest?.html === html) previewRequest = undefined;
+  });
+  return html;
+}
+
 async function loadPreview(active, frame) {
   previewLoad = active;
   feedback('preview-feedback', 'Loading the verified site…');
   try {
-    const response = await api(buildPath('/preview/'), { redirect: 'error' });
-    const html = await response.text();
+    const html = await fetchPreview(active);
     const nonce = byId('app-entry').nonce;
     if (!nonce) throw new Error('Refresh Scrollworks to load the inline preview.');
     if (job !== active) return;
@@ -485,6 +531,7 @@ function completePlan(plan) {
 function completeBuild(previewKind) {
   job.previewKind = previewKind;
   job.stage = 'ready';
+  if (job.live) void fetchPreview(job);
   save();
   updatePrompt();
 }
@@ -677,7 +724,7 @@ async function compile() {
 }
 
 function stepBy(direction) {
-  if (disposing) return;
+  if (disposing || current === preview) return;
   if (!job) {
     if (direction > 0) void sendIdea();
     return;
@@ -703,7 +750,11 @@ function stepBy(direction) {
       return;
     }
   }
-  if (next) show(next, direction);
+  if (next === preview) openPreview(direction);
+  else if (next) {
+    cancelPreviewTransition();
+    show(next, direction);
+  }
 }
 
 async function discard(event) {
@@ -728,6 +779,9 @@ async function discard(event) {
 
 function reset(keepIdea) {
   if (disposing) return;
+  cancelPreviewTransition();
+  previewRequest?.controller.abort();
+  previewRequest = undefined;
   operation?.abort();
   operation = undefined;
   job = undefined;
@@ -786,7 +840,7 @@ attachReader(reader, viewport, stepBy, pull => {
 });
 restore();
 updateIdea();
-import('./wireframe.js?v=build-fill').then(({ mountWireframe }) => {
+import('./wireframe.js?v=preview-handoff').then(({ mountWireframe }) => {
   wireframe = mountWireframe(model, reducedMotion);
   renderModel(current);
 }).catch(() => {});
