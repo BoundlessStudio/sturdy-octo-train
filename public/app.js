@@ -118,11 +118,7 @@ function nextStep(flow, index) {
   if (job && job.stage !== 'planning' && job.failedAt !== 'plan' && (current === ideaStep || current.phase === 'plan')) {
     return flow.find(step => step.phase === 'blueprint');
   }
-  const next = flow[index + 1];
-  if (current.phase === 'build' && next?.pane === 'build-note') {
-    return flow.slice(index + 1).find(step => step.pane !== 'build-note') || next;
-  }
-  return next;
+  return flow[index + 1];
 }
 
 function recordBuild(message, time = Date.now()) {
@@ -140,9 +136,11 @@ function choiceFor(feature) {
   return job.drafts[feature.id] || job.choices[feature.id] || 'later';
 }
 
-function canBrowseBuildNotes() {
-  return current.phase === 'build' && job?.stage === 'building'
-    && (job.buildNotes?.at(-1)?.number || 0) < buildNotesFor(job).length;
+function canBrowseBuildNotes(next) {
+  if (job?.stage !== 'building' || job.buildUpdatesSeen || next?.pane === 'build-note') return false;
+  if (current !== buildStart && (current.phase !== 'build' || current.pane !== 'build-note')) return false;
+  const lastNote = job.buildNotes?.at(-1);
+  return !lastNote?.after && (lastNote?.number || 0) < buildNotesFor(job).length;
 }
 
 function cueFor(next) {
@@ -156,6 +154,7 @@ function cueFor(next) {
   if (current === recap && job.stage === 'scoping') {
     return operation ? ['wait', 'Finishing the plan…'] : ['next', 'Scroll down to start the build'];
   }
+  if (canBrowseBuildNotes(next)) return ['next', NOTE_CUE];
   if (next) {
     if (next.error) return ['next', 'Scroll down to see why the build stopped'];
     if (next === preview) return ['next', 'Scroll down to open the preview'];
@@ -164,9 +163,9 @@ function cueFor(next) {
     if (next.pane === 'feature') return ['next', next.index === 0 ? 'Scroll down to choose features' : 'Scroll down to see the next feature'];
     if (next === planStart) return ['next', 'Scroll down to see the draft blueprint'];
     if (next.pane === 'blueprint') return ['next', next.index === 0 ? 'Scroll down to see your 3D blueprint' : 'Scroll down to lift the next screen'];
+    if (current.phase === 'build' && current.pane === 'build-note') return ['next', 'Scroll down to read the build updates'];
     return ['next', 'Scroll down to read the next update'];
   }
-  if (canBrowseBuildNotes()) return ['next', NOTE_CUE];
   if (current === preview) return ['done', 'This is the final step'];
   if (current.error) return ['done', 'This attempt ended'];
   if (job?.stage === 'planning') return ['wait', 'Finishing your blueprint…'];
@@ -185,7 +184,7 @@ function updatePrompt() {
   if (instruction.textContent !== label) instruction.textContent = label;
   byId('scroll-help').textContent = state === 'next' ? 'Wheel, swipe up, or Page Down'
     : state === 'wait' ? 'Scroll again when an update arrives' : 'Scroll up to review earlier steps';
-  if (label === NOTE_CUE && canBrowseBuildNotes()) byId('scroll-help').textContent = 'Build in progress';
+  if (label === NOTE_CUE && job?.stage === 'building') byId('scroll-help').textContent = 'Build in progress';
   if (job?.stage === 'planning' && current.phase === 'plan' && state === 'next') byId('scroll-help').textContent = 'Blueprint in progress';
   const stepNumber = flow.slice(0, index + 1).filter(step => step.pane !== 'build-note').length;
   byId('step-marker').textContent = current.pane === 'build-note' ? phaseNames[current.phase] + ' notes'
@@ -210,6 +209,7 @@ function show(step, direction = 0) {
   if (job) {
     if (step === planStart) job.sketchSeen = true;
     if (step.phase === 'plan' && step.pane === 'build-note') job.planNotesSeen = Math.max(job.planNotesSeen || 0, step.index + 1);
+    if (step.phase === 'build' && step.number) job.buildUpdatesSeen = true;
     job.step = step.id;
     save();
   }
@@ -625,6 +625,7 @@ async function compile() {
     job.log = [];
     job.buildNotes = [];
     delete job.attemptStart;
+    delete job.buildUpdatesSeen;
   }
   delete job.failedAt;
   delete job.error;
@@ -684,15 +685,16 @@ function stepBy(direction) {
       void compile();
       return;
     }
+    if (canBrowseBuildNotes(next)) {
+      // New notes follow the kickoff. The saved anchor also preserves older sessions.
+      const history = job.buildNotes ||= [];
+      const entry = { after: 0, number: (history.at(-1)?.number || 0) + 1 };
+      history.push(entry);
+      show(buildNoteStep(entry, buildNotesFor(job)), direction);
+      return;
+    }
   }
   if (next) show(next, direction);
-  else if (direction > 0 && canBrowseBuildNotes()) {
-    // Attach notes to the update they follow. Newly arriving updates then land after them.
-    const history = job.buildNotes ||= [];
-    const entry = { after: job.log.length, number: (history.at(-1)?.number || 0) + 1 };
-    history.push(entry);
-    show(buildNoteStep(entry, buildNotesFor(job)), direction);
-  }
 }
 
 async function discard(event) {
