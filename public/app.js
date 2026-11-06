@@ -1,5 +1,5 @@
 import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
-import { buildNotesFor } from './build-notes.js?v=customware';
+import { buildNotesFor } from './build-notes.js?v=customware-priorities';
 import { makeDemo } from './demo.js';
 import { attachReader } from './reader.js?v=customware';
 
@@ -28,7 +28,7 @@ const retryMessage = 'A new build attempt is underway.';
 const siteSaved = 'Saved the site in your build folder.';
 const previewVerified = 'Preview verified.';
 const demoReady = 'Demo HTML is ready to open.';
-const NOTE_CUE = 'Scroll down for a build note';
+const NOTE_CUE = 'Scroll down for a Customware note';
 const planNotes = [
   { title: 'Start with one process.', copy: 'Think of a request your team handles often. Who needs it, who decides what happens, and what exceptions do they look for? Those details give the blueprint a place to start.' },
   { title: 'Build the first piece.', copy: 'A useful first version covers one real handoff. Keep the features needed for that handoff, save the rest for later, and scroll to file each choice.' },
@@ -151,10 +151,12 @@ function choiceFor(feature) {
 }
 
 function canBrowseBuildNotes(next) {
-  if (job?.stage !== 'building' || job.buildUpdatesSeen || next?.pane === 'build-note') return false;
+  const building = job?.stage === 'building';
+  if ((!building && job?.stage !== 'ready') || job.buildUpdatesSeen || next?.pane === 'build-note') return false;
   if (current !== buildStart && (current.phase !== 'build' || current.pane !== 'build-note')) return false;
   const lastNote = job.buildNotes?.at(-1);
-  return !lastNote?.after && (lastNote?.number || 0) < buildNotesFor(job).length;
+  const nextNote = buildNotesFor(job)[lastNote?.number || 0];
+  return !lastNote?.after && Boolean(nextNote && (building || nextNote.priority));
 }
 
 function cueFor(next) {
@@ -237,6 +239,7 @@ function show(step, direction = 0) {
   previewBack.hidden = !expanded;
   const pane = byId(step.pane + '-pane');
   workbench.dataset.phase = step.phase;
+  workbench.toggleAttribute('data-note-pricing', Boolean(step.plans));
   for (const other of viewport.children) other.hidden = other !== pane;
   if (step === ideaStep) {
     ideaInput.readOnly = !!job;
@@ -357,14 +360,27 @@ function renderBlueprint(step) {
   byId('blueprint-blocks').replaceChildren(...screen.blocks.map(block => node('li', block.label)));
 }
 
-function renderBuildNote({ title, copy, points = [], index, total, phase, clip }) {
-  byId('build-note-label').textContent = clip ? 'FEATURE HIGHLIGHT' : phase === 'plan' ? 'PLANNING NOTES' : 'CUSTOMWARE FIELD NOTES';
+function renderBuildNote({ title, copy, points = [], plans = [], link, label, index, total, phase, clip }) {
+  byId('build-note-label').textContent = label || (clip ? 'FEATURE HIGHLIGHT' : phase === 'plan' ? 'PLANNING NOTES' : 'CUSTOMWARE FIELD NOTES');
   byId('build-note-index').textContent = (index + 1) + ' / ' + total;
   byId('build-note-title').textContent = title;
   byId('build-note-copy').textContent = copy;
   const list = byId('build-note-points');
   list.replaceChildren(...points.map(point => node('li', point)));
   list.hidden = !points.length;
+  const prices = byId('build-note-plans');
+  prices.replaceChildren(...plans.map(({ name, price, detail }) => {
+    const row = node('div');
+    row.append(node('dt', name), node('dd', price, 'note-price'), node('dd', detail, 'note-plan-detail'));
+    return row;
+  }));
+  prices.hidden = !plans.length;
+  const more = byId('build-note-link');
+  more.hidden = !link;
+  if (link) {
+    more.href = link.href;
+    more.textContent = link.label;
+  }
 }
 
 function renderHighlight({ clip, title }) {
@@ -378,8 +394,8 @@ function renderHighlight({ clip, title }) {
     highlightVideo.poster = path + '.webp';
     highlightVideo.src = path + '.mp4';
   }
-  highlightVideo.setAttribute('aria-label', title);
-  byId('highlight-caption').textContent = 'CUSTOMWARE FEATURE HIGHLIGHT · ' + clip.length;
+  highlightVideo.setAttribute('aria-label', clip.title || title);
+  byId('highlight-caption').textContent = (clip.title || 'Customware feature highlight') + ' · ' + clip.length;
 }
 
 function renderModel(step) {

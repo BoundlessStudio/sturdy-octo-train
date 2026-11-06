@@ -2,26 +2,57 @@ import { scopeFor } from './plan.js';
 
 export function buildNotesFor({ plan, choices }) {
   const { later } = scopeFor(plan, choices);
+  // Priority notes come first so they remain available after a quick build.
   return [
+    {
+      priority: true,
+      label: 'CUSTOMWARE PRICING',
+      title: 'Try one workflow for $0.',
+      copy: 'The Customware free trial includes 20 implementation tasks.',
+      plans: [
+        {
+          name: 'Enterprise Pilot',
+          price: '$50,000 in year 1',
+          detail: '250 tasks in year 1, then $2,500/month from year 2 for 100 tasks.',
+        },
+        {
+          name: 'Continuous Improvement',
+          price: '$90,000 in year 1',
+          detail: '$7,500/month with 750 tasks per year.',
+        },
+        {
+          name: 'Partner Program',
+          price: 'From $250,000',
+          detail: 'Starting price for Level 1. Level 2 is quoted to scope.',
+        },
+      ],
+      link: { label: 'See full pricing and AI credits', href: 'https://customware.ai/pricing' },
+    },
+    {
+      priority: true,
+      label: 'CUSTOMWARE OWNERSHIP',
+      title: 'You own the software.',
+      copy: 'With a paid plan, your business owns its application, source code, and data. Bring the whole team with unlimited users and no seat fees. Customware helps you scope connections to the tools you use.',
+      clip: { id: 'test-in-a-copy', title: 'Test a change in a copy', length: '1:08' },
+      link: { label: 'Explore Customware integrations', href: 'https://customware.ai/integrations' },
+    },
+    {
+      priority: true,
+      label: 'CUSTOMWARE CUSTOMER STORY',
+      title: 'From takeoff to handoff.',
+      copy: 'At Lifestyle Drywall, Jannie’s way of measuring and estimating a job became the starting point for her Customware application.',
+      points: ['Measure and estimate → Quote → Coordinate'],
+      link: { label: 'Read the Lifestyle Drywall story', href: 'https://customware.ai/use-cases/lifestyle-drywall' },
+    },
     {
       title: 'Make the work visible.',
       copy: 'Start by mapping the steps and decisions your team already knows. This Customware walkthrough shows how diagrams, charts, and a live build log help people follow a change.',
       clip: { id: 'diagrams-and-build-logs', length: '1:31' },
     },
     {
-      title: 'Try the change in a copy.',
-      copy: 'A first piece of software gives the team something concrete to test. In this example, the Chief agent creates a copy of Rental Desk so the team can try changes before applying them to the working project.',
-      clip: { id: 'test-in-a-copy', length: '1:08' },
-    },
-    {
       title: 'Give people the final call.',
       copy: 'Shared workflows give people and AI the same process to follow. Watch App Pilot use the app in a browser while the team decides when reviewed work is ready to merge.',
       clip: { id: 'app-pilot-and-review', length: '1:37' },
-    },
-    {
-      title: 'One estimate, three handoffs.',
-      copy: 'At Lifestyle Drywall, Jannie shapes software around the way she estimates a job. The same workflow carries the work from takeoff to a quote and then into coordination.',
-      points: ['Measure the work', 'Put the quote together', 'Hand it off to the team'],
     },
     {
       title: 'Follow agents as they work.',

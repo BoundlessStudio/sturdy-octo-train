@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://scroll.rgbknights.com/customware-social.png">
   <meta name="twitter:image:alt" content="Customware. Build while you scroll. Prototype screens rise from a warm orange drafting board.">
   <link rel="icon" href="/mark.svg?v=customware" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=customware">
-  <script id="app-entry" type="module" src="/app.js?v=customware"></script>
+  <link rel="stylesheet" href="/style.css?v=customware-priorities">
+  <script id="app-entry" type="module" src="/app.js?v=customware-priorities"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -79,6 +79,8 @@
                 <h2 id="build-note-title"></h2>
                 <p class="step-caption" id="build-note-copy"></p>
                 <ul class="blocks build-note-points" id="build-note-points"></ul>
+                <dl class="build-note-plans" id="build-note-plans" hidden></dl>
+                <a class="build-note-link" id="build-note-link" target="_blank" rel="noopener noreferrer" hidden></a>
               </div>
             </section>
 

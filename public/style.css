@@ -187,6 +187,34 @@ textarea[readonly] + .idea-meta #idea-feedback { color: var(--muted); }
 .blocks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); color: var(--ink); }
 .blocks li::before { content: ""; width: 6px; height: 6px; flex: none; background: var(--accent); }
 .build-note-points { max-width: 46ch; overflow-wrap: anywhere; }
+[data-note-pricing] #build-note-title { font-size: clamp(2.15rem, 4.8vw, 4.5rem); }
+.build-note-plans {
+  max-width: 540px;
+  margin: clamp(12px, 3dvh, 23px) 0 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.build-note-plans > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  align-items: baseline;
+  padding: 8px 12px;
+}
+.build-note-plans > div + div { border-top: 1px solid var(--line); }
+.build-note-plans dt, .note-price { font-weight: 700; }
+.build-note-plans dd { margin: 0; }
+.note-price { color: var(--accent); text-align: end; }
+.note-plan-detail { grid-column: 1 / -1; color: var(--muted); font-size: .83rem; }
+.build-note-link {
+  display: inline-block;
+  margin-top: 10px;
+  color: var(--accent);
+  font-size: .88rem;
+  font-weight: 650;
+  text-underline-offset: 3px;
+}
 .highlight-panel {
   display: flex;
   flex-direction: column;
@@ -208,7 +236,7 @@ textarea[readonly] + .idea-meta #idea-feedback { color: var(--muted); }
   background: var(--panel);
   box-shadow: 0 12px 32px #1c221f12;
 }
-.highlight-panel figcaption { color: var(--dim); letter-spacing: .06em; }
+.highlight-panel figcaption { color: var(--dim); letter-spacing: .06em; text-transform: uppercase; }
 
 .model-panel {
   min-width: 0;
@@ -481,6 +509,8 @@ html:is([data-preview-transition="expand"], [data-preview-transition="shrink"]):
   .masthead-inner { min-height: 49px; }
   .workbench { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(125px, 42%); gap: 0; }
   .workbench[data-phase="preview"] { grid-template-rows: minmax(0, 1fr); }
+  .workbench[data-note-pricing] { grid-template-rows: minmax(0, 1fr); }
+  .workbench[data-note-pricing] .model-panel { display: none; }
   .pane { padding-block: 14px; }
   .eyebrow { margin-bottom: 8px; }
   .idea-pane h1 { font-size: clamp(2.45rem, 9.9vw, 4.6rem); margin-bottom: 14px; }
