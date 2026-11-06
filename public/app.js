@@ -147,7 +147,7 @@ function recordBuildUpdates(state) {
 }
 
 function choiceFor(feature) {
-  return job.drafts[feature.id] || job.choices[feature.id] || 'later';
+  return job.drafts[feature.id] || job.choices[feature.id] || 'keep';
 }
 
 function canBrowseBuildNotes(next) {
@@ -422,7 +422,7 @@ function renderFeature({ feature, index }) {
   byId('feature-index').textContent = (index + 1) + ' / ' + job.plan.features.length;
   const editable = job.stage === 'scoping';
   byId('feature-help').textContent = editable
-    ? 'Pick Keep, Later, or Never. Scroll down to save your choice.'
+    ? 'Keep is the default. Scroll down to save your choice.'
     : 'This is the choice you sent to the builder.';
   const card = byId('feature-card');
   const title = node('h3', feature.title);
