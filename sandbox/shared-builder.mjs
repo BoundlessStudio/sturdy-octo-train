@@ -95,7 +95,9 @@ async function managedGeneration(prompt, phase, signal, report) {
     method: 'POST',
     headers: { authorization: 'Bearer ' + token, 'content-type': 'application/json' },
     body: JSON.stringify({ model: MODEL, messages: [{ role: 'user', content: prompt }],
-      reasoning: { effort: 'none' }, max_tokens: stream ? 6000 : 1300, stream }),
+      reasoning: { effort: 'none' }, max_tokens: stream ? 6000 : 1300, stream,
+      ...(stream ? { provider: { order: ['amazon-bedrock/global'], allow_fallbacks: true } } : {}),
+    }),
     redirect: 'error',
     signal,
   });
