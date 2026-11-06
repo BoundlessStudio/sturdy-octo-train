@@ -20,6 +20,7 @@ const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
 const retryMessage = 'A new build attempt is underway.';
+const siteSaved = 'Saved the site in your build folder.';
 const previewVerified = 'Preview verified.';
 const demoReady = 'Demo HTML is ready to open.';
 const NOTE_CUE = 'Scroll down for a build note';
@@ -440,25 +441,35 @@ function renderRecap() {
   }));
 }
 
+function prototypeHeading() {
+  const updates = job.log.slice(job.attemptStart || 0);
+  const started = updates.find(update => update.message !== retryMessage);
+  const finished = updates.findLast(update => update.message === siteSaved)
+    ?? updates.findLast(update => update.message === previewVerified || update.message === demoReady);
+  const elapsed = finished?.time - started?.time;
+  if (started === finished || !Number.isFinite(elapsed) || elapsed < 0) return 'Your prototype is ready';
+  const seconds = Math.max(1, Math.round(elapsed / 1000));
+  return 'Your prototype is ready in ' + seconds + (seconds === 1 ? ' second' : ' seconds');
+}
+
 function renderPreview() {
   const scope = scopeFor(job.plan, job.choices);
   const starter = job.previewKind === 'starter';
   const frame = byId('preview-frame');
   frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
-  byId('preview-title').textContent = starter ? 'Your starter preview is ready.' : 'Your site is ready.';
+  byId('preview-title').textContent = prototypeHeading();
   byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
     + (starter ? ' · Assembled from your scope after the model stopped' : '')
     + (job.live ? ' · Preview expires one hour after the build starts' : '');
   const actions = byId('preview-actions');
-  actions.replaceChildren(button('New idea', () => reset(false)));
+  actions.replaceChildren(button('New idea', () => reset(false)), button('Download', downloadSite));
   if (job.live) {
     actions.append(button('Delete build', discard, 'button danger'));
     if (previewLoad !== job) void loadPreview(job, frame);
   } else {
     if (!demoFile) demoFile = makeDemo(job.idea, job.plan, scope);
     if (frame.srcdoc !== demoFile) frame.srcdoc = demoFile;
-    actions.append(button('Download HTML', downloadDemo));
   }
 }
 
@@ -491,12 +502,32 @@ async function loadPreview(active, frame) {
   }
 }
 
-function downloadDemo() {
-  const link = node('a');
-  link.href = URL.createObjectURL(new Blob([demoFile], { type: 'text/html;charset=utf-8' }));
-  link.download = (job.plan.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'scrollworks-site') + '.html';
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+async function downloadSite(event) {
+  if (disposing) return;
+  const active = job;
+  const control = event.currentTarget;
+  control.disabled = true;
+  control.textContent = 'Preparing…';
+  try {
+    const file = active.live
+      ? await (await api(buildPath('/download'), { redirect: 'error', signal: AbortSignal.timeout(40_000) })).blob()
+      : new Blob([demoFile], { type: 'text/html;charset=utf-8' });
+    if (job !== active || disposing) return;
+    const href = URL.createObjectURL(file);
+    const link = node('a');
+    link.href = href;
+    link.download = (active.plan.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'scrollworks-site') + '.html';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    if (byId('preview-frame').hasAttribute('srcdoc')) feedback('preview-feedback');
+  } catch (error) {
+    if (job === active && !disposing) feedback('preview-feedback', error.status ? error.message : 'Could not download the prototype. Try again.');
+  } finally {
+    control.disabled = false;
+    control.textContent = 'Download';
+  }
 }
 
 async function api(url, options) {

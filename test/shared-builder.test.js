@@ -15,6 +15,7 @@ test('one instance serves separate owner folders and removes expired previews in
   const firstOwner = 'a'.repeat(64);
   const secondOwner = 'guest:' + 'b'.repeat(32);
   const firstIdea = 'Cedar Workshop furniture catalog with a gallery';
+  const firstHtml = '<!doctype html><html lang="en"><body><main><h1>' + firstIdea + '</h1></main></body></html>';
   const secondIdea = 'Harbor Light events calendar and contact site';
   let finishSecond;
   const secondOutput = new Promise(resolve => { finishSecond = resolve; });
@@ -26,7 +27,7 @@ test('one instance serves separate owner folders and removes expired previews in
       report('The first page code is coming in.');
       return secondOutput;
     }
-    return '<!doctype html><html lang="en"><body><main><h1>' + idea + '</h1></main></body></html>';
+    return firstHtml;
   } });
   builder.listen(0, '127.0.0.1');
   await once(builder, 'listening');
@@ -58,6 +59,7 @@ test('one instance serves separate owner folders and removes expired previews in
   assert.notEqual(first.id, second.id);
   assert.equal((await api(secondOwner, firstPath)).status, 404);
   assert.equal((await api(secondOwner, firstPath, 'DELETE')).status, 404);
+  assert.equal((await api(firstOwner, firstPath + '/download')).status, 409);
 
   const log = await events(await api(firstOwner, firstPath + '/compile', 'POST', { choices: { [first.plan.features[0].id]: 'keep' } }));
   assert.equal(log.at(-1).type, 'ready');
@@ -70,6 +72,14 @@ test('one instance serves separate owner folders and removes expired previews in
   assert.equal(preview.status, 200);
   assert.match(await preview.text(), /Cedar Workshop/);
   assert.match(preview.headers.get('content-security-policy'), /sandbox allow-scripts/);
+
+  assert.equal((await api(secondOwner, firstPath + '/download')).status, 404);
+  const download = await api(firstOwner, firstPath + '/download');
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get('content-type'), 'application/octet-stream');
+  assert.equal(download.headers.get('content-disposition'), 'attachment; filename="index.html"');
+  assert.equal(download.headers.get('cache-control'), 'private, no-store');
+  assert.equal(await download.text(), firstHtml);
 
   const kept = second.plan.features[0];
   const accepted = await api(secondOwner, secondPath + '/compile', 'POST', { choices: { [kept.id]: 'keep' } }, 'application/json');
@@ -97,6 +107,7 @@ test('one instance serves separate owner folders and removes expired previews in
   for (let attempt = 0; attempt < 20 && existsSync(join(directory, first.id)); attempt++) await pause(20);
   assert.equal(existsSync(join(directory, first.id)), false);
   assert.equal((await api(firstOwner, firstPath + '/preview/')).status, 404);
+  assert.equal((await api(firstOwner, firstPath + '/download')).status, 404);
   assert.equal((await api(secondOwner, secondPath)).status, 200);
   assert.equal((await api(secondOwner, secondPath, 'DELETE')).status, 200);
   assert.equal(existsSync(join(directory, second.id)), false);
