@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://scroll.rgbknights.com/scrollworks-social.png">
   <meta name="twitter:image:alt" content="Scrollworks. Build while you scroll. Three dark website wireframes rise from a lime-green blueprint.">
   <link rel="icon" href="/mark.svg?v=paper" type="image/svg+xml">
-  <link rel="stylesheet" href="/style.css?v=preview-fit">
-  <script id="app-entry" type="module" src="/app.js?v=prototype-download"></script>
+  <link rel="stylesheet" href="/style.css?v=fullscreen-preview">
+  <script id="app-entry" type="module" src="/app.js?v=fullscreen-preview"></script>
 </head>
 <body>
   <main class="reader" id="reader" tabindex="-1" aria-label="Scroll to build" aria-describedby="scroll-instruction">
@@ -109,13 +109,19 @@
             <section class="pane preview-pane" id="preview-pane" aria-labelledby="preview-title" hidden>
               <div class="step-content preview-content">
                 <div>
-                  <p class="eyebrow">FINAL STEP</p>
+                  <p class="eyebrow">PROTOTYPE PREVIEW</p>
                   <h2 id="preview-title">Your prototype is ready</h2>
                   <p class="step-caption" id="preview-summary"></p>
                 </div>
                 <div class="preview-window">
                   <div class="instrument-bar"><span id="preview-name">PRIVATE PREVIEW</span><span>LIVE PREVIEW</span></div>
-                  <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+                  <div class="preview-surface">
+                    <button class="preview-back brand" id="preview-back" type="button" aria-label="Back to Scrollworks" title="Back to preview" hidden>
+                      <img src="/mark.svg?v=paper" width="22" height="22" alt="">Scrollworks
+                    </button>
+                    <iframe id="preview-frame" title="Generated website preview" sandbox="allow-scripts" referrerpolicy="no-referrer" inert></iframe>
+                    <p class="preview-status" id="preview-status" role="status" hidden></p>
+                  </div>
                 </div>
                 <p id="preview-feedback" class="feedback" role="status" hidden></p>
                 <div class="utility-actions" id="preview-actions"></div>

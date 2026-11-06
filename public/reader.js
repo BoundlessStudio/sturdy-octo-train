@@ -59,7 +59,7 @@ export function attachReader(reader, content, onStep, onPull) {
   }
 
   document.addEventListener('keydown', event => {
-    if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
+    if (reader.hasAttribute('data-fullscreen') || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.isComposing) return;
     const { key, target } = event;
     const editing = target.closest?.('textarea, input, select, [contenteditable]');
     const paging = key === 'PageDown' || key === 'PageUp';

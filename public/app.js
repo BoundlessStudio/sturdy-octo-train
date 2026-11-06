@@ -1,7 +1,7 @@
 import { DECISIONS, MAX_IDEA, draftPlan, scopeFor, screensFor } from './plan.js';
 import { buildNotesFor } from './build-notes.js';
 import { makeDemo } from './demo.js';
-import { attachReader } from './reader.js?v=paper';
+import { attachReader } from './reader.js?v=fullscreen-preview';
 
 const byId = id => document.getElementById(id);
 const reader = byId('reader');
@@ -10,6 +10,8 @@ const workbench = byId('workbench');
 const ideaInput = byId('idea');
 const resetButton = byId('reset-build');
 const model = byId('blueprint-model');
+const previewFrame = byId('preview-frame');
+const previewBack = byId('preview-back');
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 const sessionKey = 'scrollworks.active-build';
 const phaseNames = { idea: 'Idea', plan: 'Plan', blueprint: 'Blueprint', scope: 'Scope', build: 'Build', preview: 'Preview' };
@@ -19,6 +21,7 @@ const planStart = { id: 'plan-start', pane: 'blueprint', phase: 'plan', index: 0
 const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
+const fullscreen = { id: 'fullscreen', pane: 'preview', phase: 'preview' };
 const retryMessage = 'A new build attempt is underway.';
 const siteSaved = 'Saved the site in your build folder.';
 const previewVerified = 'Preview verified.';
@@ -27,7 +30,7 @@ const NOTE_CUE = 'Scroll down for a build note';
 const planNotes = [
   { title: 'From idea to screens.', copy: 'The builder reads your brief and proposes screens. Each block in the wireframe represents a part of the site, such as a gallery, a calendar, or a form.' },
   { title: 'Decide what ships first.', copy: 'You’ll see one feature at a time. Keep adds it to the first version, Later saves it for another pass, and Never leaves it out. Scroll down to file each choice.' },
-  { title: 'From blueprint to preview.', copy: 'After you review the scope, the builder turns it into a page. The finished site opens right here in the last step.' },
+  { title: 'From blueprint to preview.', copy: 'After you review the scope, the builder turns it into a page. You’ll see it in the preview before the final scroll opens it full screen.' },
 ].map((note, index, all) => ({ ...note, id: 'plan-note-' + index, pane: 'build-note', phase: 'plan', index, total: all.length }));
 const notes = [
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
@@ -35,13 +38,13 @@ const notes = [
   [/accepted the page request/i, 'From brief to code', 'The model gets your brief, the wireframe, and the choices you saved for this version.'],
   [/first page code/i, 'The page is coming together', 'The builder is receiving the HTML, styles, and interactions for your page.'],
   [/styles came through/i, 'The visual layer', 'The styles give your layout its spacing, type, and color. The builder is still receiving the rest of the page.'],
-  [/assembling a starter preview/i, 'A starter version', 'Scrollworks is building a simple page from the features you kept. You can explore it in the final frame.'],
+  [/assembling a starter preview/i, 'A starter version', 'Scrollworks is building a simple page from the features you kept. You can explore it on the last step.'],
   [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
   [/writing site files/i, 'The site takes shape', 'Hermes writes the site files in its workspace and connects the pieces of the approved design.'],
-  [/checking that the page|checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that it received a complete page and can serve it in the final frame.'],
+  [/checking that the page|checking the index|checking the private preview/i, 'A working preview', 'Scrollworks checks that it received a complete page and can open the prototype.'],
   [/saved the site/i, 'Ready to serve', 'Your generated page is on disk in the folder for this build.'],
-  [/verified|ready to open/i, 'A private frame', 'The finished site opens inside an isolated frame on the last scroll step.'],
+  [/verified|ready to open/i, 'A working prototype', 'Scroll down to see the finished page and save a copy.'],
 ];
 
 let job;
@@ -50,7 +53,6 @@ let liveAvailable = false;
 let configured = false;
 let operation;
 let disposing = false;
-let previewLoad;
 let previewRequest;
 let previewTransition;
 let demoFile = '';
@@ -120,7 +122,7 @@ function steps() {
     }
   }
   if (job.failedAt === 'build') flow.push({ ...errorStep('build'), fill });
-  if (job.stage === 'ready') flow.push(preview);
+  if (job.stage === 'ready') flow.push(preview, fullscreen);
   return flow;
 }
 
@@ -167,7 +169,8 @@ function cueFor(next) {
   if (canBrowseBuildNotes(next)) return ['next', NOTE_CUE];
   if (next) {
     if (next.error) return ['next', 'Scroll down to see why the build stopped'];
-    if (next === preview) return ['next', 'Scroll down to open the preview'];
+    if (next === preview) return ['next', 'Scroll down to see your prototype'];
+    if (next === fullscreen) return ['next', 'Scroll down to open full screen'];
     if (next.pane === 'build-note') return ['next', next.phase === 'plan' ? 'Scroll down for a planning note' : NOTE_CUE];
     if (next === recap) return ['next', 'Scroll down to review your choices'];
     if (next.pane === 'feature') return ['next', next.index === 0 ? 'Scroll down to choose features' : 'Scroll down to see the next feature'];
@@ -176,7 +179,7 @@ function cueFor(next) {
     if (current.phase === 'build' && current.pane === 'build-note') return ['next', 'Scroll down to read the build updates'];
     return ['next', 'Scroll down to read the next update'];
   }
-  if (current === preview) return ['done', 'This is the final step'];
+  if (current === fullscreen) return ['done', 'This is the final step'];
   if (current.error) return ['done', 'This attempt ended'];
   if (job?.stage === 'planning') return ['wait', 'Finishing your blueprint…'];
   if (job?.stage === 'building') return ['wait', 'Waiting for the next build update…'];
@@ -194,7 +197,7 @@ function updatePrompt() {
   if (instruction.textContent !== label) instruction.textContent = label;
   byId('scroll-help').textContent = state === 'next' ? 'Wheel, swipe up, or Page Down'
     : state === 'wait' ? 'Scroll again when an update arrives'
-    : current === preview ? 'Scroll inside the preview to explore' : 'Scroll up to review earlier steps';
+    : 'Scroll up to review earlier steps';
   if (label === NOTE_CUE && job?.stage === 'building') byId('scroll-help').textContent = 'Build in progress';
   if (job?.stage === 'planning' && current.phase === 'plan' && state === 'next') byId('scroll-help').textContent = 'Blueprint in progress';
   const stepNumber = flow.slice(0, index + 1).filter(step => step.pane !== 'build-note').length;
@@ -216,6 +219,7 @@ function feedback(id, text = '') {
 }
 
 function show(step, direction = 0) {
+  const from = current;
   current = step;
   if (job) {
     if (step === planStart) job.sketchSeen = true;
@@ -224,6 +228,11 @@ function show(step, direction = 0) {
     job.step = step.id;
     save();
   }
+  const viewing = step.pane === 'preview';
+  const expanded = step === fullscreen;
+  reader.toggleAttribute('data-fullscreen', expanded);
+  previewFrame.inert = !expanded;
+  previewBack.hidden = !expanded;
   const pane = byId(step.pane + '-pane');
   workbench.dataset.phase = step.phase;
   for (const other of viewport.children) other.hidden = other !== pane;
@@ -240,18 +249,22 @@ function show(step, direction = 0) {
     renderFeature(step);
   } else if (step === recap) {
     renderRecap();
-  } else if (step === preview) {
-    renderPreview();
+  } else if (viewing) {
+    if (from.pane !== 'preview') renderPreview();
+    void preparePreview();
   }
   if (step !== ideaStep) renderModel(step);
-  if (step.message === previewVerified && job.live && job.stage === 'ready') void fetchPreview(job);
   viewport.scrollTop = 0;
   updateMode();
   updatePrompt();
+  if (expanded) {
+    previewFrame.focus({ preventScroll: true });
+    return;
+  }
   if (direction) {
     reader.focus({ preventScroll: true });
     byId('step-announcement').textContent = pane.querySelector('h1, h2').textContent;
-    if (!reducedMotion.matches && !(step === preview && previewTransition)) {
+    if (!reducedMotion.matches && !previewTransition && !viewing) {
       const contents = pane.firstElementChild;
       contents.getAnimations().forEach(animation => animation.cancel());
       contents.animate([
@@ -269,20 +282,20 @@ function cancelPreviewTransition() {
   delete document.documentElement.dataset.previewTransition;
 }
 
-function openPreview(direction) {
-  if (previewTransition) return;
+function transitionPreview(step, direction) {
+  if (step.pane === 'preview') void preparePreview();
   if (reducedMotion.matches || typeof document.startViewTransition !== 'function') {
-    show(preview, direction);
+    show(step, direction);
     return;
   }
   const root = document.documentElement;
   const active = job;
   const from = current;
   wireframe?.finishMotion();
-  root.dataset.previewTransition = '';
+  root.dataset.previewTransition = step === fullscreen ? 'expand' : from === fullscreen ? 'shrink' : step === preview ? 'open' : 'back';
   const transition = document.startViewTransition(() => {
     if (previewTransition !== transition || job !== active || current !== from) return;
-    show(preview, direction);
+    show(step, direction);
   });
   previewTransition = transition;
   void transition.ready.catch(() => {});
@@ -353,7 +366,7 @@ function renderBuildNote({ title, copy, points = [], index, total, phase }) {
 }
 
 function renderModel(step) {
-  model.hidden = step === preview;
+  model.hidden = step.pane === 'preview';
   if (model.hidden) return;
   const idea = step === ideaStep ? ideaInput.value.trim() : job.idea;
   const drafting = step === ideaStep || step.phase === 'plan';
@@ -452,54 +465,47 @@ function prototypeHeading() {
   return 'Your prototype is ready in ' + seconds + (seconds === 1 ? ' second' : ' seconds');
 }
 
+async function preparePreview() {
+  const active = job;
+  previewFrame.title = active.plan.title + ' prototype preview';
+  if (!active.live) {
+    if (!demoFile) demoFile = makeDemo(active.idea, active.plan, scopeFor(active.plan, active.choices));
+    if (previewFrame.srcdoc !== demoFile) previewFrame.srcdoc = demoFile;
+    return;
+  }
+  if (previewRequest?.job === active && Date.now() < previewRequest.freshUntil) return;
+  previewRequest?.controller.abort();
+  const controller = new AbortController();
+  const request = { job: active, controller, freshUntil: Date.now() + 30_000 };
+  previewRequest = request;
+  if (!previewFrame.hasAttribute('srcdoc')) feedback('preview-status', 'Loading your prototype…');
+  try {
+    const response = await api(buildPath('/preview/'), { redirect: 'error', signal: requestSignal(controller.signal) });
+    const html = await response.text();
+    if (previewRequest !== request) return;
+    const nonce = byId('app-entry').nonce;
+    if (!nonce) throw new Error('Refresh Scrollworks to load the prototype.');
+    const srcdoc = html.replaceAll('__SCROLLWORKS_PREVIEW_NONCE__', nonce);
+    if (previewFrame.srcdoc !== srcdoc) previewFrame.srcdoc = srcdoc;
+    feedback('preview-status');
+  } catch (error) {
+    if (previewRequest !== request) return;
+    previewRequest = undefined;
+    previewFrame.removeAttribute('srcdoc');
+    feedback('preview-status', error.message);
+  }
+}
+
 function renderPreview() {
   const scope = scopeFor(job.plan, job.choices);
-  const starter = job.previewKind === 'starter';
-  const frame = byId('preview-frame');
-  frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
   byId('preview-title').textContent = prototypeHeading();
   byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
-    + (starter ? ' · Assembled from your scope after the model stopped' : '')
+    + (job.previewKind === 'starter' ? ' · Assembled from your scope after the model stopped' : '')
     + (job.live ? ' · Preview expires one hour after the build starts' : '');
   const actions = byId('preview-actions');
   actions.replaceChildren(button('New idea', () => reset(false)), button('Download', downloadSite));
-  if (job.live) {
-    actions.append(button('Delete build', discard, 'button danger'));
-    if (previewLoad !== job) void loadPreview(job, frame);
-  } else {
-    if (!demoFile) demoFile = makeDemo(job.idea, job.plan, scope);
-    if (frame.srcdoc !== demoFile) frame.srcdoc = demoFile;
-  }
-}
-
-function fetchPreview(active) {
-  if (previewRequest?.job === active && Date.now() < previewRequest.freshUntil) return previewRequest.html;
-  previewRequest?.controller.abort();
-  const controller = new AbortController();
-  const html = api(buildPath('/preview/'), { redirect: 'error', signal: requestSignal(controller.signal) }).then(response => response.text());
-  previewRequest = { job: active, html, controller, freshUntil: Date.now() + 30_000 };
-  void html.catch(() => {
-    if (previewRequest?.html === html) previewRequest = undefined;
-  });
-  return html;
-}
-
-async function loadPreview(active, frame) {
-  previewLoad = active;
-  feedback('preview-feedback', 'Loading the verified site…');
-  try {
-    const html = await fetchPreview(active);
-    const nonce = byId('app-entry').nonce;
-    if (!nonce) throw new Error('Refresh Scrollworks to load the inline preview.');
-    if (job !== active) return;
-    frame.srcdoc = html.replaceAll('__SCROLLWORKS_PREVIEW_NONCE__', nonce);
-    feedback('preview-feedback');
-  } catch (error) {
-    if (job !== active) return;
-    previewLoad = undefined;
-    feedback('preview-feedback', error.message);
-  }
+  if (job.live) actions.append(button('Delete build', discard, 'button danger'));
 }
 
 async function downloadSite(event) {
@@ -521,9 +527,11 @@ async function downloadSite(event) {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(href), 1000);
-    if (byId('preview-frame').hasAttribute('srcdoc')) feedback('preview-feedback');
+    if (control.isConnected) feedback('preview-feedback');
   } catch (error) {
-    if (job === active && !disposing) feedback('preview-feedback', error.status ? error.message : 'Could not download the prototype. Try again.');
+    if (job === active && !disposing && control.isConnected) {
+      feedback('preview-feedback', error.status ? error.message : 'Could not download the prototype. Try again.');
+    }
   } finally {
     control.disabled = false;
     control.textContent = 'Download';
@@ -562,7 +570,7 @@ function completePlan(plan) {
 function completeBuild(previewKind) {
   job.previewKind = previewKind;
   job.stage = 'ready';
-  if (job.live) void fetchPreview(job);
+  void preparePreview();
   save();
   updatePrompt();
 }
@@ -755,7 +763,7 @@ async function compile() {
 }
 
 function stepBy(direction) {
-  if (disposing || current === preview) return;
+  if (disposing || previewTransition || current === fullscreen) return;
   if (!job) {
     if (direction > 0) void sendIdea();
     return;
@@ -781,11 +789,8 @@ function stepBy(direction) {
       return;
     }
   }
-  if (next === preview) openPreview(direction);
-  else if (next) {
-    cancelPreviewTransition();
-    show(next, direction);
-  }
+  if (next && (next.pane === 'preview' || current === preview)) transitionPreview(next, direction);
+  else if (next) show(next, direction);
 }
 
 async function discard(event) {
@@ -817,9 +822,9 @@ function reset(keepIdea) {
   operation = undefined;
   job = undefined;
   demoFile = '';
-  previewLoad = undefined;
-  byId('preview-frame').removeAttribute('srcdoc');
+  previewFrame.removeAttribute('srcdoc');
   feedback('preview-feedback');
+  feedback('preview-status');
   if (!keepIdea) ideaInput.value = '';
   save();
   show(ideaStep, -1);
@@ -851,6 +856,7 @@ function restore() {
   const fallback = job.failedAt === 'plan' ? flow.at(-1) : job.stage === 'planning' ? planStart
     : job.failedAt === 'build' || job.stage === 'building' || job.stage === 'ready' ? buildStart : flow.find(step => step.phase === 'blueprint');
   show(resumed || fallback);
+  if (job.stage === 'ready' && current.pane !== 'preview') void preparePreview();
   if (job.live && ['planning', 'building'].includes(job.stage)) {
     const phase = job.stage === 'planning' ? 'plan' : 'build';
     void run(phase, signal => recover(phase, signal), false);
@@ -865,6 +871,11 @@ const configuration = fetch('/api/config', { signal: AbortSignal.timeout(8000) }
 
 ideaInput.addEventListener('input', updateIdea);
 resetButton.addEventListener('click', () => reset(false));
+previewBack.addEventListener('click', () => {
+  if (current !== fullscreen) return;
+  cancelPreviewTransition();
+  transitionPreview(preview, -1);
+});
 history.scrollRestoration = 'manual';
 attachReader(reader, viewport, stepBy, pull => {
   if (!reducedMotion.matches && !model.hidden) wireframe?.setPull(pull);
