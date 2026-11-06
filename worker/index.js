@@ -1,19 +1,17 @@
 import assets from 'scrollworks:assets';
 import { ASSET_HEADERS, appDocument } from '../lib/assets.js';
 import { handleBuilder } from '../lib/builder.js';
-
-async function siteOwner(request) {
-  const id = request.headers.get('oai-authenticated-user-id');
-  if (!id) return '';
-  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id));
-  return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
-}
+import { identifyVisitor } from '../lib/visitor.js';
 
 export default {
   async fetch(request, env, context) {
     const { pathname } = new URL(request.url);
     if (pathname.startsWith('/api/')) {
-      return handleBuilder(request, env, await siteOwner(request), context);
+      const issue = pathname === '/api/config' && request.method === 'GET';
+      const { owner, cookie } = await identifyVisitor(request, env.SCROLLWORKS_INSTANCE_TOKEN, issue);
+      const response = await handleBuilder(request, env, owner, context);
+      if (cookie) response.headers.append('set-cookie', cookie);
+      return response;
     }
     if (!['GET', 'HEAD'].includes(request.method)) return new Response('Method not allowed', { status: 405 });
     const path = pathname === '/' ? '/index.html' : pathname;

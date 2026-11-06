@@ -8,9 +8,11 @@ import { BLOCK_KINDS, MAX_IDEA, parseAgentPlan, scopeFor } from '../public/plan.
 
 const HOUR = 60 * 60_000;
 const ID = /^[a-f0-9]{32}$/;
-const OWNER = /^(?:[a-f0-9]{64}|local-scrollworks)$/;
+const OWNER = /^(?:[a-f0-9]{64}|guest:[a-f0-9]{32}|local-scrollworks)$/;
 const BUILD_PATH = /^\/scrollworks\/builds\/([a-f0-9]{32})(?:\/(compile|preview(?:\/index\.html|\/)?))?$/;
 const MAX_ACTIVE = 2;
+const MAX_HOURLY_STARTS = 24;
+const MAX_HOURLY_OWNER_STARTS = 6;
 const MAX_HTML = 512 * 1024;
 const MODEL_TIMEOUT = 180_000;
 
@@ -139,6 +141,7 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
   const root = resolve(directory);
   const expected = Buffer.from('Bearer ' + token);
   const active = new Map();
+  const modelStarts = [];
   mkdirSync(root, { recursive: true, mode: 0o700 });
 
   const folder = id => join(root, id);
@@ -177,8 +180,15 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
     return state;
   }
   const snapshot = (id, { stage, plan, choices, error, updates }) => ({ id, stage, plan, choices, error, updates });
-  function capacity() {
+  function reserveModelStart(owner) {
     if (active.size >= MAX_ACTIVE) throw new RequestError(429, 'The shared builder is busy. Try again in a moment.');
+    const time = now();
+    while (modelStarts.length && modelStarts[0].time <= time - HOUR) modelStarts.shift();
+    if (modelStarts.length >= MAX_HOURLY_STARTS) throw new RequestError(429, 'Scrollworks reached its hourly build limit. Try again later.');
+    if (modelStarts.filter(start => start.owner === owner).length >= MAX_HOURLY_OWNER_STARTS) {
+      throw new RequestError(429, 'This build session reached its hourly limit. Try again later.');
+    }
+    modelStarts.push({ owner, time });
   }
   async function run(id, state, prompt, controller) {
     const timeout = AbortSignal.timeout(MODEL_TIMEOUT);
@@ -231,7 +241,7 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
       const data = await readJson(request);
       const idea = typeof data?.idea === 'string' ? data.idea.trim() : '';
       if (idea.length < 8 || idea.length > MAX_IDEA) throw new RequestError(400, 'Describe a website in 8 to ' + MAX_IDEA + ' characters.');
-      capacity();
+      reserveModelStart(owner);
       const id = randomBytes(16).toString('hex');
       const state = { owner, idea, stage: 'planning', createdAt: now() };
       mkdirSync(folder(id), { mode: 0o700 });
@@ -252,7 +262,7 @@ export function createSharedBuilder({ directory, token, generate = managedGenera
       if (!state.plan || !['scoping', 'error'].includes(state.stage) || active.has(id)) {
         throw new RequestError(409, 'This build is already running or is no longer waiting for scope.');
       }
-      capacity();
+      reserveModelStart(owner);
       const scope = scopeFor(state.plan, payload?.choices);
       state.choices = Object.fromEntries(Object.entries(scope).flatMap(([choice, features]) => features.map(feature => [feature.id, choice])));
       state.stage = 'building';

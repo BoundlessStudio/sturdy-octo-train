@@ -13,7 +13,7 @@ test('one instance serves separate owner folders and removes expired previews in
   const directory = mkdtempSync(join(tmpdir(), 'scrollworks-shared-'));
   const token = 'test-instance-token-at-least-32-characters';
   const firstOwner = 'a'.repeat(64);
-  const secondOwner = 'b'.repeat(64);
+  const secondOwner = 'guest:' + 'b'.repeat(32);
   const firstIdea = 'Cedar Workshop furniture catalog with a gallery';
   const secondIdea = 'Harbor Light events calendar and contact site';
   let finishSecond;
@@ -93,4 +93,38 @@ test('one instance serves separate owner folders and removes expired previews in
   assert.equal((await api(secondOwner, secondPath)).status, 200);
   assert.equal((await api(secondOwner, secondPath, 'DELETE')).status, 200);
   assert.equal(existsSync(join(directory, second.id)), false);
+});
+
+test('the shared builder limits hourly model starts across browsers and the site', async t => {
+  const directory = mkdtempSync(join(tmpdir(), 'scrollworks-rate-'));
+  const token = 'test-instance-token-at-least-32-characters';
+  const idea = 'Cedar Workshop furniture catalog';
+  let now = Date.now();
+  const builder = createSharedBuilder({ directory, token, now: () => now, generate: async () => JSON.stringify(draftPlan(idea)) });
+  builder.listen(0, '127.0.0.1');
+  await once(builder, 'listening');
+  t.after(async () => {
+    builder.close();
+    await once(builder, 'close');
+    rmSync(directory, { recursive: true, force: true });
+  });
+
+  const start = async index => {
+    const response = await fetch('http://127.0.0.1:' + builder.address().port + '/scrollworks/builds', {
+      method: 'POST',
+      headers: { authorization: 'Bearer ' + token, 'x-scrollworks-owner': 'guest:' + index.toString(16).padStart(32, '0') },
+      body: JSON.stringify({ idea }),
+    });
+    return { status: response.status, ...await response.json() };
+  };
+  for (let attempt = 0; attempt < 6; attempt++) assert.equal((await start(0)).status, 202);
+  const browserLimit = await start(0);
+  assert.equal(browserLimit.status, 429);
+  assert.match(browserLimit.error, /session reached/);
+  for (let owner = 1; owner <= 18; owner++) assert.equal((await start(owner)).status, 202);
+  const siteLimit = await start(19);
+  assert.equal(siteLimit.status, 429);
+  assert.match(siteLimit.error, /Scrollworks reached/);
+  now += 60 * 60_000;
+  assert.equal((await start(0)).status, 202);
 });
