@@ -19,6 +19,9 @@ const planStart = { id: 'plan-start', pane: 'blueprint', phase: 'plan', index: 0
 const recap = { id: 'recap', pane: 'recap', phase: 'scope' };
 const buildStart = { id: 'build-start', pane: 'feed', phase: 'build', message: 'Your scope is locked.' };
 const preview = { id: 'preview', pane: 'preview', phase: 'preview' };
+const retryMessage = 'A new build attempt is underway.';
+const previewVerified = 'Preview verified.';
+const demoReady = 'Demo HTML is ready to open.';
 const NOTE_CUE = 'Scroll down for a build note';
 const planNotes = [
   { title: 'From idea to screens.', copy: 'The builder reads your brief and proposes screens. Each block in the wireframe represents a part of the site, such as a gallery, a calendar, or a form.' },
@@ -77,9 +80,9 @@ function errorStep(phase) {
   return { id: phase + '-error', pane: 'feed', phase, error: true, message: job.error };
 }
 
-function buildNoteStep(entry, pages) {
+function buildNoteStep(entry, pages, fill = 0) {
   const index = entry.number - 1;
-  return { ...pages[index], id: 'build-note-' + entry.number, pane: 'build-note', phase: 'build', index, total: pages.length };
+  return { ...pages[index], id: 'build-note-' + entry.number, pane: 'build-note', phase: 'build', index, total: pages.length, fill };
 }
 
 function steps() {
@@ -98,18 +101,22 @@ function steps() {
     recap,
   );
   if (job.stage === 'scoping') return flow;
-  const updates = [buildStart, ...job.log.map((entry, index) => ({
-    ...entry, id: 'build-' + index, pane: 'feed', phase: 'build', number: index + 1,
-  }))];
+  let fill = 0;
+  const updates = [buildStart, ...job.log.map((entry, index) => {
+    if (entry.message === retryMessage) fill = 0;
+    else if (entry.message === previewVerified || entry.message === demoReady) fill = 1;
+    else fill += (1 - fill) * .22;
+    return { ...entry, id: 'build-' + index, pane: 'feed', phase: 'build', number: index + 1, fill };
+  })];
   const history = job.buildNotes || [];
   const pages = history.length ? buildNotesFor(job) : [];
   for (const [after, update] of updates.entries()) {
     flow.push(update);
     for (const entry of history) {
-      if (entry.after === after && entry.number <= pages.length) flow.push(buildNoteStep(entry, pages));
+      if (entry.after === after && entry.number <= pages.length) flow.push(buildNoteStep(entry, pages, update.fill));
     }
   }
-  if (job.failedAt === 'build') flow.push(errorStep('build'));
+  if (job.failedAt === 'build') flow.push({ ...errorStep('build'), fill });
   if (job.stage === 'ready') flow.push(preview);
   return flow;
 }
@@ -320,6 +327,7 @@ function renderModel(step) {
   const focus = step.pane === 'blueprint' ? step.index : step.focus ?? -1;
   const open = step.pane === 'blueprint' ? focus + 1
     : step.phase === 'scope' || step.phase === 'build' ? screens.length : step.phase === 'plan' ? 1 : 0;
+  const fill = step.fill || 0;
   const detail = {
     idea: job ? 'ORIGINAL SKETCH' : 'SKETCH / AS YOU TYPE',
     plan: 'DRAFT SKETCH',
@@ -329,6 +337,7 @@ function renderModel(step) {
   }[step.phase];
   byId('model-name').textContent = title;
   byId('model-detail').textContent = detail;
+  model.style.setProperty('--screen-fill', fill * 100 + '%');
   model.querySelector('.paper-title').textContent = title;
   model.querySelector('.paper-screens').replaceChildren(...screens.map((screen, index) => {
     const sheet = node('div', undefined, 'flat-screen');
@@ -339,7 +348,7 @@ function renderModel(step) {
   }));
   wireframe?.setSketch(title, screens);
   const event = step.number || 0;
-  wireframe?.setView(open, focus, step.phase === 'build' ? event : 0);
+  wireframe?.setView(open, focus, step.phase === 'build' ? event : 0, fill);
 }
 
 function renderFeature({ feature, index }) {
@@ -551,7 +560,7 @@ async function recover(phase, signal) {
       }
       job.plan = state.plan;
       job.choices = state.choices || job.choices;
-      recordBuild('Preview verified.');
+      recordBuild(previewVerified);
       completeBuild(state.previewKind);
       return;
     }
@@ -620,7 +629,7 @@ async function compile() {
   job.stage = 'building';
   if (retrying) {
     job.attemptStart = job.log.length;
-    job.log.push({ message: 'A new build attempt is underway.', time: Date.now() });
+    job.log.push({ message: retryMessage, time: Date.now() });
   } else {
     job.log = [];
     job.buildNotes = [];
@@ -662,7 +671,7 @@ async function compile() {
     demoFile = makeDemo(job.idea, job.plan, scopeFor(job.plan, job.choices));
     const document = new DOMParser().parseFromString(demoFile, 'text/html');
     if (!document.querySelector('main h1')) throw new Error('The demo preview could not be assembled.');
-    recordBuild('Demo HTML is ready to open.');
+    recordBuild(demoReady);
     completeBuild();
   }, !shared);
 }
@@ -777,7 +786,7 @@ attachReader(reader, viewport, stepBy, pull => {
 });
 restore();
 updateIdea();
-import('./wireframe.js?v=paper').then(({ mountWireframe }) => {
+import('./wireframe.js?v=build-fill').then(({ mountWireframe }) => {
   wireframe = mountWireframe(model, reducedMotion);
   renderModel(current);
 }).catch(() => {});

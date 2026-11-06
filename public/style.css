@@ -235,7 +235,12 @@ textarea[readonly] + .idea-meta #idea-feedback { color: var(--muted); }
 }
 .paper-screens:empty { border: 1px dashed #647832; margin-block: 6px; }
 .flat-screen { min-width: 0; align-self: center; min-height: 58%; padding: 4px; overflow: hidden; border: 1px solid #728637; }
-.flat-screen[data-raised="true"] { background: #262c17; border-color: #262c17; color: #f2f6e8; box-shadow: 2px 3px #728637; }
+.flat-screen[data-raised="true"] {
+  background: linear-gradient(#43552a var(--screen-fill, 0%), #262c17 var(--screen-fill, 0%));
+  border-color: #262c17;
+  color: #f2f6e8;
+  box-shadow: 2px 3px #728637;
+}
 .flat-screen strong, .flat-block { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 clamp(.52rem, .9vw, .74rem)/1.25 var(--mono); }
 .flat-block { margin-top: 4px; padding: 2px; border: 1px solid #596d26; }
 .flat-screen[data-raised="false"] .flat-block { color: transparent; }

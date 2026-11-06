@@ -80,9 +80,9 @@ function drawPad(ctx, title, count) {
   stroke(ctx, [[70, lineY], [68 + finalWidth * .56, lineY - 7], [70 + finalWidth, lineY - 3]], ink, 4);
 }
 
-function drawBlock(ctx, kind, x, y, width, height, draft) {
-  const fg = draft ? '#4f6328' : '#a2c340';
-  const muted = draft ? '#819644' : '#3a3e30';
+function drawBlock(ctx, kind, x, y, width, height, filled) {
+  const fg = filled ? '#4f6924' : '#a3bd6c';
+  const muted = filled ? '#9aaa81' : '#46543a';
   const line = (x1, y1, x2, y2, color = fg) => {
     stroke(ctx, [[x + width * x1, y + height * y1], [x + width * x2, y + height * y2]], color, 3);
   };
@@ -90,8 +90,8 @@ function drawBlock(ctx, kind, x, y, width, height, draft) {
     const rect = [x + width * tx, y + height * ty, width * w, height * h];
     ctx.strokeStyle = emphasis ? fg : muted;
     ctx.lineWidth = 2;
-    if (!draft) {
-      ctx.fillStyle = emphasis ? '#3c4a21' : '#272b22';
+    if (filled) {
+      ctx.fillStyle = emphasis ? paper : '#e5ecd4';
       ctx.fillRect(...rect);
     }
     ctx.strokeRect(...rect);
@@ -123,7 +123,7 @@ function drawBlock(ctx, kind, x, y, width, height, draft) {
       for (const lx of [0, .345, .69]) {
         tile(lx, .02, .30, .60, lx === 0);
         line(lx, .82, lx + .22, .82);
-        if (draft) line(lx, .02, lx + .30, .62, muted);
+        if (!filled) line(lx, .02, lx + .30, .62, muted);
       }
       break;
     default:
@@ -131,34 +131,37 @@ function drawBlock(ctx, kind, x, y, width, height, draft) {
       line(0, .37, .27, .37, muted);
       tile(0, .62, .29, .24, true);
       tile(.52, .02, .48, .9);
-      if (draft) {
+      if (!filled) {
         line(.52, .02, 1, .92, muted);
         line(1, .02, .52, .92, muted);
       }
   }
 }
 
-function drawScreen(ctx, screen, width, height, draft) {
-  const body = draft ? paper : '#191c16';
-  const border = draft ? '#647932' : '#4f5840';
-  ctx.fillStyle = body;
+function drawScreen(ctx, screen, width, height, filled) {
+  const border = filled ? '#91a478' : '#66794a';
+  ctx.fillStyle = filled ? '#edf1df' : '#1b2016';
   ctx.fillRect(0, 0, width, height);
+  if (!filled) {
+    for (let x = 25; x < width - 12; x += 34) stroke(ctx, [[x, 12], [x, height - 12]], '#303b24', 1);
+    for (let y = 25; y < height - 12; y += 34) stroke(ctx, [[12, y], [width - 12, y]], '#303b24', 1);
+  }
   ctx.strokeStyle = border;
-  ctx.lineWidth = draft ? 4 : 8;
+  ctx.lineWidth = 6;
   ctx.strokeRect(7, 7, width - 14, height - 14);
 
   const side = 30;
   const head = 58;
   const content = width - side * 2;
-  ctx.fillStyle = draft ? '#c3e747' : '#25291f';
+  ctx.fillStyle = filled ? '#dce6c6' : '#252c1d';
   ctx.fillRect(11, 11, width - 22, head);
   for (let index = 0; index < 3; index++) {
     ctx.beginPath();
     ctx.arc(side + index * 17, 39, 4, 0, Math.PI * 2);
-    ctx.fillStyle = index === 0 && !draft ? paper : border;
+    ctx.fillStyle = index === 0 && filled ? '#73973a' : border;
     ctx.fill();
   }
-  ctx.fillStyle = draft ? ink : chalk;
+  ctx.fillStyle = filled ? ink : chalk;
   ctx.font = 'bold 41px system-ui, sans-serif';
   ctx.fillText(screen.name, side, head + 56, content);
   const top = head + 85;
@@ -167,15 +170,17 @@ function drawScreen(ctx, screen, width, height, draft) {
   const row = (height - top - side - (rows - 1) * gap) / rows;
   for (const [index, block] of screen.blocks.entries()) {
     const y = top + index * (row + gap);
-    ctx.fillStyle = draft ? '#c6e84b' : '#22261d';
-    ctx.fillRect(side, y, content, row);
+    if (filled) {
+      ctx.fillStyle = '#f9faef';
+      ctx.fillRect(side, y, content, row);
+    }
     ctx.strokeStyle = border;
     ctx.lineWidth = 2;
     ctx.strokeRect(side, y, content, row);
-    ctx.fillStyle = draft ? ink : chalk;
+    ctx.fillStyle = filled ? ink : chalk;
     ctx.font = '600 23px system-ui, sans-serif';
     ctx.fillText(block.label, side + 14, y + 30, content - 28);
-    drawBlock(ctx, block.kind, side + 16, y + 45, content - 32, Math.max(15, row - 58), draft);
+    drawBlock(ctx, block.kind, side + 16, y + 45, content - 32, Math.max(15, row - 58), filled);
   }
 }
 
@@ -204,7 +209,7 @@ export function mountWireframe(panel, reducedMotion) {
   let screens = [];
   let title = '';
   let signature = '';
-  let view = [0, ...opening];
+  let view = [0, ...opening, 0];
   let destination = view;
   let pull = 0;
   let frame = 0;
@@ -229,8 +234,8 @@ export function mountWireframe(panel, reducedMotion) {
     const tall = Math.round(pixels * height / width);
     const mock = canvasTexture(pixels, tall);
     const sketch = canvasTexture(pixels, tall);
-    drawScreen(sketch.ctx, screen, pixels, tall, true);
-    drawScreen(mock.ctx, screen, pixels, tall, false);
+    drawScreen(sketch.ctx, screen, pixels, tall, false);
+    drawScreen(mock.ctx, screen, pixels, tall, true);
     const body = new THREE.Mesh(new THREE.BoxGeometry(width + .035, height + .035, .085),
       new THREE.MeshBasicMaterial({ color: '#21261b' }));
     body.position.set(0, height / 2, -.029);
@@ -238,26 +243,29 @@ export function mountWireframe(panel, reducedMotion) {
     const draft = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: sketch.map }));
     draft.position.set(0, height / 2, .019);
     pivot.add(draft);
-    const finished = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({
-      map: mock.map, transparent: true, depthWrite: false,
-    }));
+    const finished = new THREE.Mesh(new THREE.PlaneGeometry(width, height), new THREE.MeshBasicMaterial({ map: mock.map }));
     finished.position.set(0, height / 2, .022);
     pivot.add(finished);
-    return { pivot, body, cast, finished, draft };
+    return { pivot, body, cast, finished, draft, height };
   }
 
   function render() {
     const { clientWidth: width, clientHeight: height } = viewport;
     if (lost || !width || !height) return;
-    const [open, x, y, z, lookX, lookY] = view;
-    for (const [index, { pivot, body, cast, finished, draft }] of screens.entries()) {
+    const [open, x, y, z, lookX, lookY, fill] = view;
+    for (const [index, { pivot, body, cast, finished, draft, height }] of screens.entries()) {
       const raised = THREE.MathUtils.smoothstep(open - index, 0, 1);
       pivot.rotation.x = -Math.PI / 2 + raised * (Math.PI / 2 - .09);
       body.visible = raised > .08;
       cast.material.opacity = raised * .24;
       cast.scale.set(1, .28 + raised * .18, 1);
-      const filled = THREE.MathUtils.smoothstep(raised, .25, .95);
-      finished.material.opacity = filled;
+      const delay = index * .075;
+      const filled = raised * THREE.MathUtils.clamp((fill - delay) / (1 - delay), 0, 1);
+      // Crop the surface and its texture together so the filled area never stretches.
+      finished.scale.y = filled;
+      finished.position.y = height * (1 - filled / 2);
+      finished.material.map.repeat.y = filled;
+      finished.material.map.offset.y = 1 - filled;
       finished.visible = filled > 0;
       draft.visible = filled < 1;
     }
@@ -302,7 +310,7 @@ export function mountWireframe(panel, reducedMotion) {
     render();
   }
 
-  function setView(open, focus, event = 0) {
+  function setView(open, focus, event = 0, fill = 0) {
     const drift = Math.sin(event * .83) * .9;
     const spot = places[focus];
     const target = spot
@@ -310,6 +318,7 @@ export function mountWireframe(panel, reducedMotion) {
       : open ? [open, 4.0 + drift, 8.7, 15.1, 0, .76]
         : event ? [0, 6.0 + drift, 12.0, 14.5, 0, 0]
           : [0, ...opening];
+    target.push(fill);
     if (target.every((value, index) => value === destination[index])) return;
     destination = target;
     cancelAnimationFrame(frame);
