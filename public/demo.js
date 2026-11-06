@@ -38,7 +38,7 @@ function contentFor(feature, theme) {
   }
 }
 
-export function makeDemo(idea, plan, scope) {
+export function makeDemo(idea, plan, scope, { starter = false } = {}) {
   const theme = themes[plan.layout];
   const title = escape(plan.title);
   const navigation = scope.keep.map(feature =>
@@ -78,10 +78,10 @@ export function makeDemo(idea, plan, scope) {
 <body>
 <header><strong>${title}</strong><nav aria-label="Page sections">${navigation}</nav></header>
 <main>
-  <section class="intro"><p class="label">${theme.label}</p><h1>${theme.headline}</h1><p class="brief">${escape(idea)}</p></section>
+  <section class="intro"><p class="label">${theme.label}</p><h1>${starter ? title : theme.headline}</h1><p class="brief">${escape(idea)}</p></section>
   ${sections}
 </main>
-<footer>Demo prototype created with Scrollworks</footer>
+<footer>${starter ? 'Starter preview by Scrollworks' : 'Demo prototype created with Scrollworks'}</footer>
 </body>
 </html>`;
 }

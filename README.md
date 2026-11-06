@@ -19,6 +19,7 @@ Copy `.env.example` to `.env`, set `AGENT37_API_KEY` and a random `SCROLLWORKS_I
 
 - One Agent37 instance runs the builder. It saves each build in a folder tied to its browser session or signed-in owner. The instance allows six model requests per session and 24 in total per hour, with planning and generation counted separately.
 - Scrollworks reads the page over Agent37's private port and renders it in the iframe at the end of the scroll. Each preview URL checks the owner and the build's age.
+- The shared builder asks GPT-6 Luna for a compact page. If generation ends incomplete or reaches its 55-second limit, the builder assembles a labeled starter preview from the kept features.
 - Each build expires one hour after submission. The instance clears expired folders every minute. **Delete build** removes the folder and its preview immediately.
 
 The Express server binds to loopback by default. For a separate HTTPS deployment, set `HOST`, `BUILDER_ORIGIN`, and `BUILDER_ACCESS_TOKEN`. The HTTP Basic username is `scrollworks` and the password is the access token. The hosted Site uses a signed session cookie for visitors who build without signing in.

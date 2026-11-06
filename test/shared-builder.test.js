@@ -71,7 +71,8 @@ test('one instance serves separate owner folders and removes expired previews in
   assert.match(await preview.text(), /Cedar Workshop/);
   assert.match(preview.headers.get('content-security-policy'), /sandbox allow-scripts/);
 
-  const accepted = await api(secondOwner, secondPath + '/compile', 'POST', { choices: {} }, 'application/json');
+  const kept = second.plan.features[0];
+  const accepted = await api(secondOwner, secondPath + '/compile', 'POST', { choices: { [kept.id]: 'keep' } }, 'application/json');
   assert.equal(accepted.status, 202);
   assert.equal((await accepted.json()).stage, 'building');
   const pending = await (await api(secondOwner, secondPath)).json();
@@ -80,11 +81,17 @@ test('one instance serves separate owner folders and removes expired previews in
     'The builder received your feature choices.', 'The first page code is coming in.',
   ]);
   finishSecond('<!doctype html><html><body>');
-  const failed = await (await api(secondOwner, secondPath)).json();
-  assert.equal(failed.stage, 'error');
-  assert.match(failed.error, /complete HTML page/);
-  assert.deepEqual(failed.updates.slice(0, -1), pending.updates);
-  assert.equal(failed.updates.at(-1).message, 'Checking that the page is complete.');
+  const recovered = await (await api(secondOwner, secondPath)).json();
+  assert.equal(recovered.stage, 'ready');
+  assert.equal(recovered.previewKind, 'starter');
+  assert.deepEqual(recovered.updates.slice(0, pending.updates.length), pending.updates);
+  assert.ok(recovered.updates.some(update => update.message.includes('Assembling a starter preview.')));
+  const starter = await api(secondOwner, secondPath + '/preview/');
+  assert.equal(starter.status, 200);
+  const starterHtml = await starter.text();
+  assert.match(starterHtml, /Starter preview by Scrollworks/);
+  assert.ok(starterHtml.includes('id="' + kept.id + '"'));
+  assert.ok(!starterHtml.includes('id="' + second.plan.features[1].id + '"'));
 
   now += 60 * 60_000 - 30_000;
   for (let attempt = 0; attempt < 20 && existsSync(join(directory, first.id)); attempt++) await pause(20);

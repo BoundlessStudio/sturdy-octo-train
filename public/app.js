@@ -27,9 +27,11 @@ const planNotes = [
 ].map((note, index, all) => ({ ...note, id: 'plan-note-' + index, pane: 'build-note', phase: 'plan', index, total: all.length }));
 const notes = [
   [/feature choices/i, 'A deliberate first release', 'Keep becomes the build scope. Later stays in the backlog and Never is left out.'],
+  [/new build attempt/i, 'A fresh attempt', 'The builder will use the features you already approved.'],
   [/accepted the page request/i, 'From brief to code', 'The model gets your brief, the wireframe, and the choices you saved for this version.'],
   [/first page code/i, 'The page is coming together', 'The builder is receiving the HTML, styles, and interactions for your page.'],
   [/styles came through/i, 'The visual layer', 'The styles give your layout its spacing, type, and color. The builder is still receiving the rest of the page.'],
+  [/assembling a starter preview/i, 'A starter version', 'Scrollworks is building a simple page from the features you kept. You can explore it in the final frame.'],
   [/building the site|building the features|assembling/i, 'From scope to site', 'The builder turns the approved features into a page with styles and interactions.'],
   [/running commands/i, 'Checking the work', 'Hermes can run checks inside the workspace while the site is taking shape.'],
   [/writing site files/i, 'The site takes shape', 'Hermes writes the site files in its workspace and connects the pieces of the approved design.'],
@@ -124,7 +126,7 @@ function nextStep(flow, index) {
 }
 
 function recordBuild(message, time = Date.now()) {
-  if (!message || job.log.some(entry => entry.message === message)) return;
+  if (!message || job.log.slice(job.attemptStart || 0).some(entry => entry.message === message)) return;
   job.log.push({ message, time });
   save();
   updatePrompt();
@@ -154,10 +156,6 @@ function cueFor(next) {
   if (current === recap && job.stage === 'scoping') {
     return operation ? ['wait', 'Finishing the plan…'] : ['next', 'Scroll down to start the build'];
   }
-  if (current.error && !operation) {
-    if (current.phase === 'build' && job.id) return ['next', 'Scroll down to retry the build'];
-    if (!job.id) return ['next', 'Scroll down to edit your idea'];
-  }
   if (next) {
     if (next.error) return ['next', 'Scroll down to see why the build stopped'];
     if (next === preview) return ['next', 'Scroll down to open the preview'];
@@ -170,7 +168,7 @@ function cueFor(next) {
   }
   if (canBrowseBuildNotes()) return ['next', NOTE_CUE];
   if (current === preview) return ['done', 'This is the final step'];
-  if (current.error) return ['done', 'This run is paused'];
+  if (current.error) return ['done', 'This attempt ended'];
   if (job?.stage === 'planning') return ['wait', 'Finishing your blueprint…'];
   if (job?.stage === 'building') return ['wait', 'Waiting for the next build update…'];
   return ['wait', 'Waiting for the next update'];
@@ -263,24 +261,28 @@ function updateIdea() {
 function renderFeed(step) {
   const { phase, error, message, number, time } = step;
   const plan = phase === 'plan';
+  const retry = !plan && job.id;
   const note = error
-    ? ['What you can do', 'Scroll up to reread the last update. ' + (job.id
-      ? plan ? 'Use Reset to start with a fresh idea.' : 'Scroll down to retry with the approved scope.'
-      : 'Scroll down to edit your idea and start again.')]
+    ? ['What you can do', retry
+      ? 'Choose Retry build to try the approved scope again, or use Reset for a new idea.'
+      : 'Choose Edit idea to change your brief and start again.']
     : step === buildStart
       ? ['The build is underway', 'Your choices define the first version. Each update waits for you to scroll to it.']
       : (notes.find(([pattern]) => pattern.test(message))?.slice(1) ||
         ['Inside the build', 'This update comes from the sandbox running your brief.']);
-  byId('feed-label').textContent = (plan ? 'PLANNING' : 'BUILD') + (error ? ' PAUSED' : ' UPDATE');
+  byId('feed-label').textContent = (plan ? 'PLANNING' : 'BUILD') + (error ? ' STOPPED' : ' UPDATE');
   byId('feed-title').textContent = message;
   const clock = time ? new Date(time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   byId('feed-index').textContent = number ? String(number).padStart(2, '0') + ' / ' + clock : phaseNames[phase].toUpperCase();
   byId('guide-title').textContent = note[0];
   byId('guide-copy').textContent = note[1];
   const actions = byId('feed-actions');
-  actions.hidden = !(error && job.id);
+  actions.hidden = !error;
   actions.replaceChildren();
-  if (error && job.id) actions.append(button('Delete build', discard, 'button danger'));
+  if (error) {
+    actions.append(retry ? button('Retry build', compile) : button('Edit idea', () => reset(true)));
+    if (job.id) actions.append(button('Delete build', discard, 'button danger'));
+  }
   feedback('feed-feedback');
 }
 
@@ -396,10 +398,13 @@ function renderRecap() {
 
 function renderPreview() {
   const scope = scopeFor(job.plan, job.choices);
+  const starter = job.previewKind === 'starter';
   const frame = byId('preview-frame');
   frame.title = job.plan.title + ' website preview';
   byId('preview-name').textContent = job.plan.title;
+  byId('preview-title').textContent = starter ? 'Your starter preview is ready.' : 'Your site is ready.';
   byId('preview-summary').textContent = scope.keep.length + ' kept · ' + scope.later.length + ' for later · ' + scope.never.length + ' left out'
+    + (starter ? ' · Assembled from your scope after the model stopped' : '')
     + (job.live ? ' · Preview expires one hour after the build starts' : '');
   const actions = byId('preview-actions');
   actions.replaceChildren(button('New idea', () => reset(false)));
@@ -468,7 +473,8 @@ function completePlan(plan) {
   updatePrompt();
 }
 
-function completeBuild() {
+function completeBuild(previewKind) {
+  job.previewKind = previewKind;
   job.stage = 'ready';
   save();
   updatePrompt();
@@ -498,7 +504,7 @@ async function readEvents(response, phase, signal) {
           return;
         }
         if (event.type === 'ready') {
-          completeBuild();
+          completeBuild(event.previewKind);
           return;
         }
         if (event.type === 'error') {
@@ -520,7 +526,7 @@ const requestSignal = signal => AbortSignal.any([signal, AbortSignal.timeout(22_
 
 async function recover(phase, signal) {
   const shared = phase === 'build' && isSharedBuild();
-  const deadline = Date.now() + (shared ? 225_000 : 12 * 60_000);
+  const deadline = Date.now() + (shared ? 85_000 : 12 * 60_000);
   while (Date.now() < deadline) {
     signal.throwIfAborted();
     let state;
@@ -546,10 +552,10 @@ async function recover(phase, signal) {
       job.plan = state.plan;
       job.choices = state.choices || job.choices;
       recordBuild('Preview verified.');
-      completeBuild();
+      completeBuild(state.previewKind);
       return;
     }
-    if (phase === 'build' && state?.stage === 'scoping') throw new Error('The sandbox did not receive the build. Scroll to retry.');
+    if (phase === 'build' && state?.stage === 'scoping') throw new Error('The sandbox did not receive the build request.');
     await pause(shared ? 2000 : 4500);
   }
   throw new Error('The builder has not reported a result yet.');
@@ -610,12 +616,19 @@ async function sendIdea() {
 async function compile() {
   if (operation) return;
   const shared = job.live && isSharedBuild();
+  const retrying = job.failedAt === 'build';
   job.stage = 'building';
-  job.log = [];
-  job.buildNotes = [];
+  if (retrying) {
+    job.attemptStart = job.log.length;
+    job.log.push({ message: 'A new build attempt is underway.', time: Date.now() });
+  } else {
+    job.log = [];
+    job.buildNotes = [];
+    delete job.attemptStart;
+  }
   delete job.failedAt;
   delete job.error;
-  show(buildStart, 1);
+  show(retrying ? steps().at(-1) : buildStart, 1);
   await run('build', async signal => {
     if (shared) {
       try {
@@ -669,11 +682,6 @@ function stepBy(direction) {
     }
     if (current === recap && job.stage === 'scoping') {
       void compile();
-      return;
-    }
-    if (current.error && !operation) {
-      if (current.phase === 'build' && job.id) void compile();
-      else if (!job.id) reset(true);
       return;
     }
   }

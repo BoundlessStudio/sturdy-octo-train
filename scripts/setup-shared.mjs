@@ -34,9 +34,10 @@ async function credentials() {
 }
 
 async function installCommand(firstBoot) {
-  const [builder, plan] = await Promise.all([
+  const [builder, plan, demo] = await Promise.all([
     readFile(new URL('../sandbox/shared-builder.mjs', import.meta.url), 'base64'),
     readFile(new URL('../public/plan.js', import.meta.url), 'base64'),
+    readFile(new URL('../public/demo.js', import.meta.url), 'base64'),
   ]);
   return `set -eu
 umask 077
@@ -44,6 +45,7 @@ root="$HOME/.scrollworks"
 mkdir -p "$root/service/sandbox" "$root/service/public" "$HOME/.agent37/hooks"
 printf '%s' '${builder}' | base64 -d > "$root/service/sandbox/shared-builder.mjs"
 printf '%s' '${plan}' | base64 -d > "$root/service/public/plan.js"
+printf '%s' '${demo}' | base64 -d > "$root/service/public/demo.js"
 printf '%s\n' '{"type":"module"}' > "$root/service/package.json"
 cat > "$root/start.sh" <<'SCROLLWORKS'
 #!/bin/sh
